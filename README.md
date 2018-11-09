@@ -31,9 +31,9 @@ source setup.sourceme
 ```
 
 You can setup more packages, but don't forget to install them first("eups distrib install $package $version") and put "setup $packgename" into setup.sourceme .
-## Generate the quasar catalog 
+# Generate the quasar catalog 
 
-# Download the raw quasar catalog.
+## Download the raw quasar catalog.
 
 Go to your workingspace or where you want to store you data 
 
@@ -43,7 +43,7 @@ download_raw_catalog.sh
 
 This will download 1. million quasar catalog and  2. OzDES catalog.
 
-# Process catalog
+## Process catalog
 
 ```
 generate_quasar_catalog
