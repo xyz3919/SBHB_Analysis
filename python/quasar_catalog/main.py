@@ -11,9 +11,11 @@ class catalog:
 
         self.catalog_dir = "catalog/"
         if not os.path.isdir(self.catalog_dir): os.mkdir(self.catalog_dir)
+
         self.temp_catalog_dir = "catalog/temp/"
         if not os.path.isdir(self.temp_catalog_dir):
             os.mkdir(self.temp_catalog_dir)
+
         self.raw_catalog_dir = "raw_catalog/"
         self.milliqua = "million_quasar.txt"
         self.ozdes = "OzDES.txt"
@@ -32,6 +34,7 @@ class catalog:
                               "X1":(34.4757,-34.4757),
                               "X2":(35.6645,-6.4121),
                               "X3":(36.4500,-4.6000)}
+        self.query = query.query()
 
 
     def load_million_catalog(self):
@@ -62,7 +65,7 @@ class catalog:
 
         N = 1
         for field in regions:
-            selected = catalog.select_quasars_in_one_region(\
+            selected = self.select_quasars_in_one_region(\
                        data,field)
             if N == 1 : total = selected
             else: total = np.concatenate((total,selected),axis=0)
@@ -131,6 +134,7 @@ class catalog:
         print (string)
         write_file.write(string+"\n")
 
+
     def main(self):
 
         # select million quasar in SN fields
@@ -159,17 +163,16 @@ class catalog:
 
 
         # cross-match with DES Y3A1 coadd catalog
-        q = query.query()
         N = 1
         for row in combined:
-            DES_coadd_object = q.get_coadd_object_spread_model(row['ra'],\
+            DES_coadd_object = self.query.get_coadd_object_spread_model(row['ra'],\
                                row['dec'])
             if DES_coadd_object is not None:
                 new_row = np.array([(DES_coadd_object["ra"],\
                           DES_coadd_object["dec"],row["flag"],row["z"],\
-                          row["where"],DES_coadd_object["flux_psf_r"],\
+                          row["where"],DES_coadd_object["wavg_mag_psf_r"],\
                           DES_coadd_object["spread_model_r"])],\
-                          dtype=self.dtype+[("flux_psf_r",float),\
+                          dtype=self.dtype+[("mag_psf_r",float),\
                           ("spread_model_r",float)])
                 if N == 1: combined_in_DES = new_row
                 else: 
@@ -181,13 +184,13 @@ class catalog:
 
         np.savetxt(self.catalog_dir+"milliqua+OzDES_SN.txt",\
                    combined_in_DES,fmt="%f,%f,%s,%f,%s,%f,%f",\
-                   header="ra,dec,spec_flag,z,where,flux_psf_r,spread_model_r")
+                   header="ra,dec,spec_flag,z,where,mag_psf_r,spread_model_r")
 
         # extract spectroscapically confirmed quasars in S1 and S2
          
         combined_in_DES = np.genfromtxt(self.catalog_dir+\
                           "milliqua+OzDES_SN.txt",delimiter=",",\
-                          dtype=self.dtype+[("flux_psf_r",float),\
+                          dtype=self.dtype+[("mag_psf_r",float),\
                           ("spread_model_r",float)])
         quasars_S1S2 = self.select_quasars_in_regions(combined_in_DES,\
                       ["S1","S2"])
@@ -199,7 +202,7 @@ class catalog:
                              str(len(spec_quasars_S1S2)))
         np.savetxt(self.catalog_dir+"spec_quasars_S1S2.txt",\
                    spec_quasars_S1S2,fmt="%f,%f,%s,%f,%s,%f,%f",\
-                   header="ra,dec,spec_flag,z,where,flux_psf_r,spread_model_r")
+                   header="ra,dec,spec_flag,z,where,mag_psf_r,spread_model_r")
 
         f1 = plot.plot()
         f1.plot_ra_dec(spec_quasars_S1S2["ra"],spec_quasars_S1S2["dec"],\
