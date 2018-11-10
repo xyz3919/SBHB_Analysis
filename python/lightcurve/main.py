@@ -15,7 +15,7 @@ class lc:
         self.lc_dir = "lightcurves/"
         if not os.path.isdir(self.lc_dir): os.mkdir(self.lc_dir)
         self.query    = query()
-        self.save_dir = save_dir
+        self.save_dir = self.lc_dir+save_dir
         self.quasar_catalog_dir = "catalog/"
         self.quasar_catalog = "spec_quasars_S1S2.txt"
         self.lc_info_file = "lc_info.csv"
@@ -41,4 +41,9 @@ class lc:
         f = open(self.lc_dir+output,"w")
         f.write("name,ra,dec,redshift,mag_r,flag,N_g,N_r,N_i,N_z\n")
         f.close()
+
+    def create_dir(self,directory):
+
+        if not os.path.exists(directory):
+            os.makedirs(directory)
 
