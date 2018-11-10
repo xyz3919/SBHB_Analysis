@@ -11,7 +11,7 @@ if __name__ == '__main__':
     lc = main.lc()
     quasar_catalog = lc.load_quasar_catalog()
     lc.write_header()
-        self.create_dir(self.save_dir)
+    lc.create_dir(self.save_dir)
         for quasar in quasar_catalog:
             target = self.generate_lightcurve(quasar,save_catalog)
             plot.plot_lightcurve(target,plot.load_lightcurve(target,self.save_dir),self.save_dir)
