@@ -47,7 +47,7 @@ class lc:
     def generate_lightcurve(self,quasar):
 
         band_list = ["g","r","i","z"]
-        name = self.degtohexname(quasar["ra"],quasar["dec"])
+        name = useful_funcs.degtohexname(quasar["ra"],quasar["dec"])
         f = open(save_catalog,"a")
         f.write(name+",")
         f.write(",".join(np.array(quasar).astype(str)))

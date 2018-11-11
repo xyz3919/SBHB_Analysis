@@ -4,7 +4,9 @@ import numpy as np
 from lightcurve import main
 from lightcurve import plot
 from lightcurve import query
+import useful_funcs
 import sys
+
 
 if __name__ == '__main__':
 
@@ -12,6 +14,8 @@ if __name__ == '__main__':
     quasar_catalog = lc.load_quasar_catalog()
     lc.write_header()
     for quasar in quasar_catalog:
+        name = useful_funcs.degtohexname(quasar["ra"],quasar["dec"])
+        f = open(lc.lc_info_file,"a")
         # make SV-Y4 light curves
         target = lc.generate_lightcurve(quasar)
         plot.plot_lightcurve(target,plot.load_lightcurve(target,self.save_dir),self.save_dir)
