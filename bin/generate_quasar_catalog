@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 #
+import timeit
 import numpy as np
 from quasar_catalog import main
 from quasar_catalog import plot
@@ -8,6 +9,7 @@ import sys
 
 if __name__ == '__main__':
 
+    start = timeit.default_timer()
     catalog = main.catalog()
 
     # select million quasar in SN fields
@@ -42,9 +44,9 @@ if __name__ == '__main__':
             new_row = np.array([(DES_coadd_object["ra"],\
                       DES_coadd_object["dec"],row["flag"],row["z"],\
                       row["where"],DES_coadd_object["flux_psf_r"],\
-                      DES_coadd_object["spread_model_r"])],\
+                      DES_coadd_object["spread_model_i"])],\
                       dtype=catalog.dtype+[("flux_psf_r",float),\
-                      ("spread_model_r",float)])
+                      ("spread_model_i",float)])
             if N == 1: combined_in_DES = new_row
             else:
                 combined_in_DES = np.concatenate((combined_in_DES,\
@@ -55,14 +57,14 @@ if __name__ == '__main__':
 
     np.savetxt(catalog.catalog_dir+"milliqua+OzDES_SN.txt",\
                combined_in_DES,fmt="%f,%f,%s,%f,%s,%f,%f",\
-               header="ra,dec,spec_flag,z,where,flux_psf_r,spread_model_r")
+               header="ra,dec,spec_flag,z,where,flux_psf_r,spread_model_i")
 
     # extract spectroscapically confirmed quasars in S1 and S2
 
     combined_in_DES = np.genfromtxt(catalog.catalog_dir+\
                       "milliqua+OzDES_SN.txt",delimiter=",",\
                       dtype=catalog.dtype+[("flux_psf_r",float),\
-                      ("spread_model_r",float)])
+                      ("spread_model_i",float)])
     quasars_S1S2 = catalog.select_quasars_in_regions(combined_in_DES,\
                   ["S1","S2"])
     catalog.print_and_write(catalog.file_record,"quasars in S1,S2:"+\
@@ -73,9 +75,13 @@ if __name__ == '__main__':
                          str(len(spec_quasars_S1S2)))
     np.savetxt(catalog.catalog_dir+"spec_quasars_S1S2.txt",\
                spec_quasars_S1S2,fmt="%f,%f,%s,%f,%s,%f,%f",\
-               header="ra,dec,spec_flag,z,where,flux_psf_r,spread_model_r")
+               header="ra,dec,spec_flag,z,where,flux_psf_r,spread_model_i")
 
     f1 = plot.plot()
     f1.plot_ra_dec(spec_quasars_S1S2["ra"],spec_quasars_S1S2["dec"],\
                      "spec_S1S2")
+    f1.plot_spread_model(spec_quasars_S1S2["spread_model_i"],"i","spec_S1S2")
+
+    stop = timeit.default_timer()
+    print ("Execution Time:"+str((stop-start)/60.)+" mins")
 

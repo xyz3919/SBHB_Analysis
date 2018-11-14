@@ -4,7 +4,7 @@ import numpy as np
 from astropy.io import fits
 from astropy.coordinates import SkyCoord
 from astropy import units as u
-from query import query
+import query 
 import useful_funcs
 #import plot
 
@@ -14,7 +14,8 @@ class lc:
         
         self.lc_dir = "lightcurves/"
         useful_funcs.create_dir(self.lc_dir)
-        self.query    = query()
+        self.query    = query.query_DES()
+        self.query_SDSS = query.Stripe82()
         self.save_dir = self.lc_dir+save_dir
         useful_funcs.create_dir(self.save_dir)
         self.quasar_catalog_dir = "catalog/"
@@ -145,6 +146,21 @@ class lc:
         return final_list
 
 
+    def generate_SDSS_lightcurve(self,quasar):
 
+        dtype_SDSS = [("mjd_obs",float),("mag_psf",float),\
+                      ("mag_err_psf",float),("band","|S1")]
+        matched_quasars = np.array([],dtype=dtype_SDSS)
+        objects = self.query_SDSS.q(quasar["ra"],quasar["dec"])
+        if objects is None: return matched_quasars
+        for band in self.band_list:
+            objects_band = np.array(map(tuple,[list(row) + [band] \
+                           for row in objects[["mjd_"+band,"mag_psf_"+band,\
+                           "mag_err_psf_"+band]]]),dtype=dtype_SDSS)
+            clean_objects = objects_band[(objects_band["mag_psf"]<30) &\
+                                         (objects_band["mag_psf"]>10) ]
+            matched_quasars = np.append(matched_quasars,clean_objects)
+
+        return matched_quasars
 
 

@@ -171,9 +171,9 @@ class catalog:
                 new_row = np.array([(DES_coadd_object["ra"],\
                           DES_coadd_object["dec"],row["flag"],row["z"],\
                           row["where"],DES_coadd_object["wavg_mag_psf_r"],\
-                          DES_coadd_object["spread_model_r"])],\
+                          DES_coadd_object["spread_model_i"])],\
                           dtype=self.dtype+[("mag_psf_r",float),\
-                          ("spread_model_r",float)])
+                          ("spread_model_i",float)])
                 if N == 1: combined_in_DES = new_row
                 else: 
                     combined_in_DES = np.concatenate((combined_in_DES,\
@@ -184,14 +184,14 @@ class catalog:
 
         np.savetxt(self.catalog_dir+"milliqua+OzDES_SN.txt",\
                    combined_in_DES,fmt="%f,%f,%s,%f,%s,%f,%f",\
-                   header="ra,dec,spec_flag,z,where,mag_psf_r,spread_model_r")
+                   header="ra,dec,spec_flag,z,where,mag_psf_r,spread_model_i")
 
         # extract spectroscapically confirmed quasars in S1 and S2
          
         combined_in_DES = np.genfromtxt(self.catalog_dir+\
                           "milliqua+OzDES_SN.txt",delimiter=",",\
                           dtype=self.dtype+[("mag_psf_r",float),\
-                          ("spread_model_r",float)])
+                          ("spread_model_i",float)])
         quasars_S1S2 = self.select_quasars_in_regions(combined_in_DES,\
                       ["S1","S2"])
         self.print_and_write(self.file_record,"quasars in S1,S2:"+\
@@ -202,7 +202,7 @@ class catalog:
                              str(len(spec_quasars_S1S2)))
         np.savetxt(self.catalog_dir+"spec_quasars_S1S2.txt",\
                    spec_quasars_S1S2,fmt="%f,%f,%s,%f,%s,%f,%f",\
-                   header="ra,dec,spec_flag,z,where,mag_psf_r,spread_model_r")
+                   header="ra,dec,spec_flag,z,where,mag_psf_r,spread_model_i")
 
         f1 = plot.plot()
         f1.plot_ra_dec(spec_quasars_S1S2["ra"],spec_quasars_S1S2["dec"],\
