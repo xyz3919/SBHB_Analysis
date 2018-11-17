@@ -19,31 +19,39 @@ class lc:
         self.save_dir = self.lc_dir+save_dir
         useful_funcs.create_dir(self.save_dir)
         self.quasar_catalog_dir = "catalog/"
-        self.quasar_catalog = "spec_quasars_S1S2.txt"
+        self.quasar_catalog = "DR14+DR7+OzDES+Milliq_S1S2.txt"
         self.lc_info_file = "lc_info.csv"
         self.log = "log"
         self.band_list = ["g","r","i","z"]
-        self.dtype = [("ra",float),("dec", float),("flag","|S4"),\
-                      ("z",float),("where","|S6")]
 
 
     def load_quasar_catalog(self):
 
         # loading the quasar catalog
-        # columns=[ra,dec,spec_flag,z,where,mag_psf_r,spread_model_r]
+        # columns=[ra,dec,z,flag1,flag2,flag3,flag4,mag_psf_i,spread_model_i,
+        #           spread_model_err_i]
         print("loading quasar catalog: "+self.quasar_catalog_dir+\
               self.quasar_catalog)
+        with open(self.quasar_catalog_dir+self.quasar_catalog) as f:
+            first_line = f.readline()
+        num_columns = len(first_line.split(","))
+        flag_number = num_columns-6
+        dtype = [('ra', '<f8'), ('dec', '<f8'), ('z', '<f8')]+\
+                [("flag_"+str(i),"|S15") for i in range(flag_number)]+\
+                [('mag_psf_i', '<f8'), ('spread_model_i', '<f8'),\
+                 ('spread_model_err_i', '<f8')]
         quasars = np.genfromtxt(self.quasar_catalog_dir+self.quasar_catalog,\
-                  delimiter=",",dtype=self.dtype+[("mag_psf_r",float),\
-                  ("spread_model_r",float)])
+                  delimiter=",",dtype=dtype)
 
         quasars.sort(order="ra")
         return quasars
 
-    def write_header(self):
+    def write_header(self,quasar_catalog):
 
-        f = open(self.lc_dir+output,"w")
-        f.write("name,ra,dec,redshift,mag_r,flag,N_g,N_r,N_i,N_z\n")
+        f = open(self.lc_dir+self.lc_info_file,"w")
+        headers = ",".join(quasar_catalog.dtype.names)
+        f.write("name,"+headers+",N_DES_g,N_DES_r,N_DES_i,N_DES_z")
+        f.write(",N_SDSS_g,N_SDSS_r,N_SDSS_i,N_SDSS_z\n")
         f.close()
 
     def get_zeropoint(self,data,data_coadd,band):
@@ -144,7 +152,19 @@ class lc:
                 quasar_cal = self.calibrate_mag(matched_quasar,zeropoint,zeropoint_rms)
                 final_list = np.append(final_list,quasar_cal)
         return final_list
+    def convert_flux_to_mag(self,total_quasars):
 
+        total_quasars["flux_err_psf"] = total_quasars["flux_err_psf"]*1.09/\
+                                        total_quasars["flux_psf"]
+        total_quasars["flux_psf"] = 22.5-2.5*np.log10(total_quasars["flux_psf"])
+        total_quasars["flux_err_auto"] = total_quasars["flux_err_auto"]*1.09/\
+                                        total_quasars["flux_auto"]
+        total_quasars["flux_auto"] = 22.5-\
+                                    2.5*np.log10(total_quasars["flux_auto"])
+        total_quasars.dtype.names = tuple([w.replace("flux","mag") for w \
+                                          in total_quasars.dtype.names])
+
+        return total_quasars
 
     def generate_SDSS_lightcurve(self,quasar):
 

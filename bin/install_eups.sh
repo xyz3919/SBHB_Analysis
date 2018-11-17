@@ -22,3 +22,6 @@ eups distrib install astropy 1.1.2+6
 eups distrib install scipy 0.14.0+12
 eups distrib install matplotlib 1.5.3+2
 
+# install astroquery by pip
+
+pip install astroquery

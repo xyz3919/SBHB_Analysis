@@ -3,6 +3,9 @@ import numpy as np
 import astropy
 import query
 import plot
+from astropy.io import fits
+from astropy import units as u
+from astropy.coordinates import SkyCoord
 
 
 class catalog:
@@ -19,6 +22,8 @@ class catalog:
         self.raw_catalog_dir = "raw_catalog/"
         self.milliqua = "million_quasar.txt"
         self.ozdes = "OzDES.txt"
+        self.DR14Q = "DR14Q_v4_4.fits"
+        self.DR7Q = "dr7qso.fit"
         self.dtype = [("ra",float),("dec", float),("flag","|S4"),\
                       ("z",float),("where","|S6")]
         self.crossmatch_radius = 2.
@@ -39,13 +44,32 @@ class catalog:
 
     def load_million_catalog(self):
 
+        print ("Loading Million quasar catalog ...")
         data = np.genfromtxt(self.raw_catalog_dir+self.milliqua,\
                delimiter=",",dtype=self.dtype)
         return data
 
+    def load_SDSS_DR14(self):
+
+        print ("Loading SDSS DR14 quasar catalog ...")
+        hdulist = fits.open(self.raw_catalog_dir+self.DR14Q)
+        data = np.array(hdulist[1].data)
+        extracted_data = data[["RA","DEC","Z"]]
+        extracted_data.dtype.names = "ra","dec","z"
+        return extracted_data
+
+    def load_SDSS_DR7(self):
+
+        print ("Loading SDSS DR7 quasar catalog ...")
+        hdulist = fits.open(self.raw_catalog_dir+self.DR7Q)
+        data = np.array(hdulist[1].data)
+        extracted_data = data[["RA","DEC","z"]]
+        extracted_data.dtype.names = "ra","dec","z"
+        return extracted_data
+
     def load_OzDES_catalog(self):
 
-
+        print ("Loading OzDES quasar catalog ...")
         data = np.genfromtxt(self.raw_catalog_dir+self.ozdes,delimiter=",",\
                              dtype=[("ra",float),("dec", float),("z",float)])
         return data
@@ -74,11 +98,18 @@ class catalog:
         total_unique.sort(order='ra')
         return total_unique
 
+    def adding_flag(self,data,flag):
+
+        dtype = [('ra', '<f8'), ('dec', '<f8'), ('z', '<f8')]+\
+                [("flag","|S15")]
+        final_list = np.array([],dtype=dtype) 
+        for a in range(len(data)):
+            adding_list = np.array([tuple(data[a])+(flag,)],dtype=dtype)
+            final_list = np.append(final_list,adding_list)
+        return final_list
 
     def adding_second_catalog(self,data1,data2,cat_name,spec_flag,where):
 
-        from astropy import units as u
-        from astropy.coordinates import SkyCoord
         
         self.print_and_write(self.file_record,"--- Adding "+\
                              cat_name+" catalog ---")
@@ -117,9 +148,117 @@ class catalog:
                              "combined:"+str(len(added_data)))
 
         return added_data
+
+    def combining_two_catalogs(self,data1,data2,cat_name):
+
+        flag_number = len(data1.dtype.names)-3+1
+        dtype = [('ra', '<f8'), ('dec', '<f8'), ('z', '<f8')]+\
+                [("flag_"+str(i),"|S15") for i in range(flag_number)]
+        final_list = np.array([],dtype=dtype)
+
+        self.print_and_write(self.file_record,"--- Adding "+\
+                             cat_name+" catalog ---")
+
+        c1 = SkyCoord(ra=data1["ra"]*u.degree, dec=data1["dec"]*u.degree)
+        c2 = SkyCoord(ra=data2["ra"]*u.degree, dec=data2["dec"]*u.degree)
+        idx, d2d, d3d = c2.match_to_catalog_sky(c1)
+        # matched
+        idx_1 = idx[d2d<self.crossmatch_radius*u.arcsec]
+        idx_2 = np.where(d2d<self.crossmatch_radius*u.arcsec)[0]
+
+        self.print_and_write(self.file_record,\
+                             "cross-matched:"+str(len(idx_1)))
+        N = 0
+        for i in range(len(idx_1)):
+            adding_list = np.array([tuple(data1[idx_1[i]])+\
+                          (data2[idx_2[i]]["flag"],)],dtype=dtype)
+            final_list = np.append(final_list,adding_list)
+        # in 1 but not in 2
+        mask = np.ones(len(data1), dtype=bool)
+        mask[idx_1] = False
+        idx_not_1 = np.where(mask)[0]
+
+        for i in range(len(idx_not_1)):
+            adding_list = np.array([tuple(data1[idx_not_1[i]])+("     ",)],\
+                          dtype=dtype)
+            final_list = np.append(final_list,adding_list)
+
+        # in 2 but not in 1
+        idx_not_2 = np.where(d2d>self.crossmatch_radius*u.arcsec)[0]
+        self.print_and_write(self.file_record,\
+                             "adding:"+str(len(idx_not_2)))
+
+        for i in range(len(idx_not_2)):
+            adding_list = np.array([tuple(data2[["ra","dec","z"]]\
+                          [idx_not_2[i]])+("     ",)*(flag_number-1)+\
+                          (data2["flag"][idx_not_2[i]],)],\
+                          dtype=dtype)
+            final_list = np.append(final_list,adding_list)
+
+        self.print_and_write(self.file_record,\
+                             "combined:"+str(len(final_list)))
+
+        return final_list
+
+    def adding_million_quasars(self,data1,data2):
+
+        flag_number = len(data1.dtype.names)-3+1
+        dtype = [('ra', '<f8'), ('dec', '<f8'), ('z', '<f8')]+\
+                [("flag_"+str(i),"|S15") for i in range(flag_number)]
+        final_list = np.array([],dtype=dtype)
+
+        self.print_and_write(self.file_record,"--- Adding "+\
+                             "Million Quasar catalog ---")
+
+        c1 = SkyCoord(ra=data1["ra"]*u.degree, dec=data1["dec"]*u.degree)
+        c2 = SkyCoord(ra=data2["ra"]*u.degree, dec=data2["dec"]*u.degree)
+        idx, d2d, d3d = c2.match_to_catalog_sky(c1)
+        # matched
+        idx_1 = idx[d2d<self.crossmatch_radius*u.arcsec]
+        idx_2 = np.where(d2d<self.crossmatch_radius*u.arcsec)[0]
+
+        self.print_and_write(self.file_record,\
+                             "cross-matched:"+str(len(idx_1)))
+        N = 0
+        for i in range(len(idx_1)):
+            adding_list = np.array([tuple(data1[idx_1[i]])+\
+                          ("MQ_"+data2[idx_2[i]]["flag"].split(" ")[0]+"_"+\
+                          data2[idx_2[i]]["where"],)],dtype=dtype)
+            final_list = np.append(final_list,adding_list)
+        # in 1 but not in 2
+        mask = np.ones(len(data1), dtype=bool)
+        mask[idx_1] = False
+        idx_not_1 = np.where(mask)[0]
+
+        for i in range(len(idx_not_1)):
+            adding_list = np.array([tuple(data1[idx_not_1[i]])+("     ",)],\
+                          dtype=dtype)
+            final_list = np.append(final_list,adding_list)
+
+        # in 2 but not in 1
+        idx_not_2 = np.where(d2d>self.crossmatch_radius*u.arcsec)[0]
+        self.print_and_write(self.file_record,\
+                             "adding:"+str(len(idx_not_2)))
+
+        for i in range(len(idx_not_2)):
+            adding_list = np.array([tuple(data2[["ra","dec","z"]]\
+                          [idx_not_2[i]])+("     ",)*(flag_number-1)+\
+                          ("MQ_"+data2["flag"][idx_not_2[i]].split(" ")[0]+"_"+\
+                          data2[idx_2[i]]["where"],)],\
+                          dtype=dtype)
+            final_list = np.append(final_list,adding_list)
+
+        self.print_and_write(self.file_record,\
+                             "combined:"+str(len(final_list)))
+
+        return final_list
+
+
+
     def select_spec_confirmed(self,data):
 
-        quasar_flags = ["Q","A","B","N","K"]
+        quasar_flags = ["Q"]
+        #quasar_flags = ["Q","A","B","N","K"]
         #quasar_flags = ["R","X"]
         #quasar_flags = ["q"]
         true_array = np.array([False]*len(data))

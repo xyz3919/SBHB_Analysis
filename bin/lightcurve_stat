@@ -1,0 +1,35 @@
+#!/usr/bin/env python
+# 
+import numpy as np
+from lightcurve import main
+from lightcurve import plot
+import useful_funcs
+
+
+if __name__ == '__main__':
+
+
+    lc = main.lc("DES/")
+    lc_info = np.genfromtxt(lc.lc_dir+lc.lc_info_file,delimiter=",",\
+              dtype = [("name","|S20"),("ra",float),("dec",float),\
+                       ("z",float),("flag_0","|S6"),("flag_1","|S6"),\
+                       ("flag_2","|S6"),("flag_3","|S15"),\
+                       ("mag_i",float),("spread_model_r",float),\
+                       ("spread_model_err_r",float),\
+                       ("N_DES_g",int),("N_DES_r",int),("N_DES_i",int),\
+                       ("N_DES_z",int),("N_SDSS_g",int),("N_SDSS_r",int),\
+                       ("N_SDSS_i",int),("N_SDSS_z",int)])
+    number_epochs_DES = plot.plot(2,2,figsize=(10,8))
+    number_epochs_SDSS = plot.plot(2,2,figsize=(10,8))
+    for band in lc.band_list:
+        number_epochs_DES.plot_histogram(lc_info["N_DES_"+band],band)
+        number_epochs_SDSS.plot_histogram(lc_info["N_SDSS_"+band],band)
+
+    print ("Saving the DES number of epochs plot at 'plot/DES_epochs.png'")
+    print ("Saving the SDSS number of epochs plot at 'plot/SDSS_epochs.png'")
+    number_epochs_DES.savefig("plot/","DES_epochs.png",\
+                              "Number of epochs in DES")
+    number_epochs_SDSS.savefig("plot/","SDSS_epochs.png",\
+                               "Number of epochs in SDSS")
+
+

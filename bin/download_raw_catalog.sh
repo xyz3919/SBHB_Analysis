@@ -29,6 +29,22 @@ then
     mv ajaa5b8dt2_mrt.txt ${raw_catalog_dir}/
 fi
 
+# SDSS DR14Q
+if [ ! -e $raw_catalog_dir/DR14Q_v4_4.fits ]
+then
+    wget https://data.sdss.org/sas/dr14/eboss/qso/DR14Q/DR14Q_v4_4.fits
+    mv DR14Q_v4_4.fits ${raw_catalog_dir}/
+fi
+
+# SDSS DR7Q
+
+if [ ! -e $raw_catalog_dir/dr7qso.fit ]
+then
+    wget http://das.sdss.org/va/qsocat/dr7qso.fit
+    mv dr7qso.fit ${raw_catalog_dir}/
+fi
+
+
 ## extract ra,dec,z,(spectroscopically confirmed , from where) 
 
 # Million quasar catalog

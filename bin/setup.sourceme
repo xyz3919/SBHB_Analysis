@@ -6,3 +6,5 @@ setup despydb
 setup astropy
 setup despymisc
 setup matplotlib
+
+#PYTHONPATH=~/python/lib/python2.7/site-packages:$PYTHONPATH
