@@ -1,0 +1,74 @@
+#!/usr/bin/env python
+
+import numpy as np
+from lightcurve import main
+from lightcurve import plot
+import useful_funcs
+from astropy.io import fits
+
+
+if __name__ == '__main__':
+
+    band_list = ["g","r","i","z"]
+    info = {"SDSS":{},"DES":{}}
+
+    # create filter info dir
+
+    dir_filter = "filters/"
+    useful_funcs.create_dir(dir_filter)
+
+    # dowload SDSS bandpass
+    url_filter_SDSS = "http://classic.sdss.org/dr3/instruments/imager/"+\
+                      "filters/%s.dat"
+    for band in band_list:
+        useful_funcs.download_file(url_filter_SDSS % (band),dir_filter+"SDSS_"+band+".dat")
+
+    # dowload DES bandpass
+    url_filter_DES ="http://www.ctio.noao.edu/noao/sites/default/files/DECam/"+\
+                    "STD_BANDPASSES_DR1.dat"
+    useful_funcs.download_file(url_filter_DES,dir_filter+"DES.dat")
+    
+    # load SDSS bandpass info
+    for band in band_list:
+        data_SDSS = np.genfromtxt(dir_filter+"SDSS_"+band+".dat")
+        info["SDSS"].update({band:data_SDSS[:,[0,1]]})
+
+    # load DES bandpass info
+    band_num = {"g":1,"r":2,"i":3,"z":4}
+    data_DES = np.genfromtxt(dir_filter+"DES.dat")
+    for band in band_list:
+        info["DES"].update({band:data_DES[:,[0,band_num[band]]]})
+
+    # plot SDSS and DES
+
+    f = plot.plot(1,1)
+    for camera in ["SDSS","DES"]:
+        for band in band_list:
+            x = info[camera][band][:,0]
+            y = info[camera][band][:,1]
+            f.plot_filter(x,y,band,camera)
+    f.savefig("plot/","troughput.png","DES vs. SDSS Throughput")
+
+    # download the J0252 spectrum  
+    
+    lc = main.lc("DES/")
+
+    url_spectrum = "https://data.sdss.org/sas/dr14/eboss/spectro/redux/v5_10_0/spectra/lite/7820/spec-7820-56984-0470.fits"
+    useful_funcs.download_file(url_spectrum,dir_filter+"spectrum.fits")
+
+    hdul = fits.open(dir_filter+"spectrum.fits")
+    data =  hdul[1].data
+    
+    lambda_q = 10**data["loglam"]
+    flux_q =  10**(-17)*data["flux"]
+    for band in band_list :
+        trans_SDSS,trans_DES = info["SDSS"][band],info["DES"][band]
+        mag_SDSS =  lc.spectrum_to_mag(lambda_q,flux_q,trans_SDSS[:,0],trans_SDSS[:,1])
+        mag_DES =  lc.spectrum_to_mag(lambda_q,flux_q,trans_DES[:,0],trans_DES[:,1])
+        #print ("mag_SDSS: "+str(mag_SDSS)+" ; mag_DES: "+str(mag_DES))
+        print (band+": m_DES - m_SDSS =" + str(mag_DES-mag_SDSS))
+
+
+
+
+

@@ -48,11 +48,21 @@ class plot:
         #ax.annotate(band, xy=(-12, -12), xycoords='axes points',\
         #            size=12, ha='right',va='top',color=self.color_list[band],\
         #            bbox=dict(boxstyle='round', fc='w'))
+    def plot_filter(self,x,y,band,camera):
+
+        if camera == "SDSS": linestyle = "--"
+        elif camera == "DES": linestyle = "-" 
+        self.axes.plot(x,y,label=camera+" "+band,linestyle=linestyle,\
+                       c=self.color_list[band])
+        self.axes.set_xlabel("Wavelength(A)")
+        self.axes.set_ylabel("Truoghtout")
+        self.axes.legend(prop={'size': 10})
 
     def savefig(self,dir_output,name,title):
 
         plt.tight_layout(rect=[0, 0.03, 1, 0.95])
         self.f.suptitle(title,fontsize=20)
+        print("Saving "+dir_output+name)
         self.f.savefig(dir_output+name,dpi=150)
         plt.close()
 

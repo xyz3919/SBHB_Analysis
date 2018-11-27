@@ -14,11 +14,27 @@ if __name__ == '__main__':
               dtype = [("name","|S20"),("ra",float),("dec",float),\
                        ("z",float),("flag_0","|S6"),("flag_1","|S6"),\
                        ("flag_2","|S6"),("flag_3","|S15"),\
-                       ("mag_i",float),("spread_model_r",float),\
-                       ("spread_model_err_r",float),\
+                       ("mag_i",float),("spread_model_i",float),\
+                       ("spread_model_err_i",float),\
                        ("N_DES_g",int),("N_DES_r",int),("N_DES_i",int),\
                        ("N_DES_z",int),("N_SDSS_g",int),("N_SDSS_r",int),\
                        ("N_SDSS_i",int),("N_SDSS_z",int)])
+    N = 0
+    clean_sample = np.array([],dtype=lc_info.dtype)
+    for row in lc_info:
+        N_pass = 0
+        for band in lc.band_list:
+            if( row["N_DES_"+band] > 50) and (row["N_SDSS_"+band] > 30) \
+                and (row["spread_model_i"] < 0.005):
+                N_pass = N_pass +1
+        if N_pass > 1:
+            clean_sample = np.append(clean_sample,row)
+    print ("Number of Quasar with Enough epochs: "+str(len(clean_sample)))
+    print ("z:"+str(np.median(clean_sample["z"])))
+    print ("mag_i:"+str(np.median(clean_sample["mag_i"])))
+    print ("N_DES_i:"+str(np.median(clean_sample["N_DES_i"])))
+    print ("N_SDSS_i:"+str(np.median(clean_sample["N_SDSS_i"])))
+
     number_epochs_DES = plot.plot(2,2,figsize=(10,8))
     number_epochs_SDSS = plot.plot(2,2,figsize=(10,8))
     for band in lc.band_list:
@@ -31,5 +47,6 @@ if __name__ == '__main__':
                               "Number of epochs in DES")
     number_epochs_SDSS.savefig("plot/","SDSS_epochs.png",\
                                "Number of epochs in SDSS")
+
 
 

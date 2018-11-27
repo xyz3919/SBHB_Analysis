@@ -6,6 +6,7 @@ from astropy.coordinates import SkyCoord
 from astropy import units as u
 import query 
 import useful_funcs
+from math import log10, radians, pi,cos,sin
 #import plot
 
 class lc:
@@ -15,7 +16,8 @@ class lc:
         self.lc_dir = "lightcurves/"
         useful_funcs.create_dir(self.lc_dir)
         self.query    = query.query_DES()
-        self.query_SDSS = query.Stripe82()
+        self.query_S82 = query.Stripe82()
+        self.query_SDSS = query.query_SDSS()
         self.save_dir = self.lc_dir+save_dir
         useful_funcs.create_dir(self.save_dir)
         self.quasar_catalog_dir = "catalog/"
@@ -171,7 +173,7 @@ class lc:
         dtype_SDSS = [("mjd_obs",float),("mag_psf",float),\
                       ("mag_err_psf",float),("band","|S1")]
         matched_quasars = np.array([],dtype=dtype_SDSS)
-        objects = self.query_SDSS.q(quasar["ra"],quasar["dec"])
+        objects = self.query_S82.q(quasar["ra"],quasar["dec"])
         if objects is None: return matched_quasars
         for band in self.band_list:
             objects_band = np.array(map(tuple,[list(row) + [band] \
@@ -182,5 +184,53 @@ class lc:
             matched_quasars = np.append(matched_quasars,clean_objects)
 
         return matched_quasars
+
+    def spectrum_to_mag(self,lamb_spec,flux_spec,lamb_trans,ratio_trans):
+
+        c = 3*10**10*10**8 # A/s
+        ratio_spec = np.interp(lamb_spec,lamb_trans,ratio_trans)
+        STL = flux_spec*lamb_spec*ratio_spec
+        T_L = ratio_spec/lamb_spec
+        f_nu = 1./c*np.trapz(STL,x=lamb_spec)/np.trapz(T_L,x=lamb_spec)
+        m_AB = -2.5*np.log10(f_nu)-48.6
+
+        return m_AB
+
+class spectra:
+
+    def __init__(self):
+
+        self.query_SDSS = query.query_SDSS()
+        self.dir_spec = "spectra/"
+        useful_funcs.create_dir(self.dir_spec)
+
+    def get_SDSS_spectrum(self,ra,dec,dist=0.1):
+
+        ra_lower = ra - cos(radians(dec))*0.5*dist/3600.0 
+        ra_upper = ra + cos(radians(dec))*0.5*dist/3600.0
+        dec_lower = dec - 0.5*dist/3600.0
+        dec_upper = dec + 0.5*dist/3600.0
+        column,data = self.query_SDSS.main(["-q","select survey, run2d, "+\
+                      "plate,mjd, fiberID, specObjID from "+\
+                              "SpecObj where class = 'QSO' and ra between "+\
+                              " %f and %f and dec between %f and %f " % \
+                              (ra_lower,ra_upper,dec_lower, dec_upper)])
+        if data is None: return None
+        spec_data = [row.split("," )for row in data.split("\n")[:-1]]
+        survey,run2d,plateid,mjd,fiberid,specid = spec_data[0]
+
+        if survey == "boss": survey="eboss"
+
+        url_spectrum = "https://data.sdss.org/sas/dr14/%s/spectro/redux/%s/"+\
+                       "spectra/%s/spec-%s-%s-%s.fits"
+        variables = (survey,run2d,plateid.zfill(4),plateid.zfill(4),\
+                    mjd,fiberid.zfill(4))
+        name = useful_funcs.degtohexname(ra,dec)
+        os.system("wget "+url_spectrum % variables+" -O "+self.dir_spec+name+\
+                  ".fits")
+
+
+
+
 
 

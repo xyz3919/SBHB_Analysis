@@ -1,0 +1,17 @@
+#!/usr/bin/env python
+
+import numpy as np
+from lightcurve import main
+from lightcurve import plot
+import useful_funcs
+from astropy.io import fits
+
+if __name__ == "__main__":
+
+    lc = main.lc("/SDSS")
+    spectra = main.spectra()
+
+    quasars = lc.load_quasar_catalog()
+    for quasar in quasars:
+        spectra.get_SDSS_spectrum(quasar["ra"],quasar["dec"])
+

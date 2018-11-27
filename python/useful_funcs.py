@@ -20,6 +20,11 @@ def degtohexname(ra,dec):
         dec=-dec        
         return "J%02d%02d%05.2f-%02d%02d%05.1f" % (rah,ram,ras,decd,decm,decs)
 
+def download_file(url,path):
+
+    if not os.path.exists(path):
+        os.system("wget "+url+" -O "+path)
+
 def create_dir(directory):
 
     if not os.path.exists(directory):

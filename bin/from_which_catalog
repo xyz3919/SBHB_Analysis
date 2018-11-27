@@ -1,0 +1,30 @@
+#! /bin/bash -f
+
+catalog="DR14+DR7+OzDES+Milliq_S1S2.txt"
+
+echo "From SDSS DR14Q:"
+DR14Q=$(awk -F, '$4==" DR14Q"{print $0}' catalog/$catalog | wc -l)
+echo $DR14Q
+
+echo "From SDSS DR7Q:"
+DR7Q=$(awk -F, '$5=="  DR7Q"{print $0}' catalog/$catalog | wc -l)
+echo $DR7Q
+echo "in DR14Q:"
+DR7Q_DR14Q=$(awk -F, '$4==" DR14Q"&&$5=="  DR7Q"{print $0}' catalog/$catalog | wc -l)
+echo $DR7Q_DR14Q
+
+echo "From OzDES:"
+OzDES=$(awk -F, '$6==" OzDES"{print $0}' catalog/$catalog | wc -l)
+echo $OzDES
+
+echo "in DR14Q and DR7Q:"
+OzDES_DR7Q_DR14Q=$(awk -F, '($4==" DR14Q"||$5=="  DR7Q")&&$6==" OzDES"{print $0}' catalog/$catalog | wc -l)
+echo $OzDES_DR7Q_DR14Q
+
+echo "From MQ:"
+MQ=$(awk -F, '$$7!="             "{print $0}' catalog/$catalog | wc -l)
+echo $MQ
+
+echo "in DR14Q and DR7Q:"
+OzDES_DR7Q_DR14Q=$(awk -F, '($4==" DR14Q"||$5=="  DR7Q")&&$6==" OzDES"{print $0}' catalog/$catalog | wc -l)
+echo $OzDES_DR7Q_DR14Q
