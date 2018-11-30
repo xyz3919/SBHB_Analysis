@@ -12,6 +12,6 @@ if __name__ == "__main__":
     spectra = main.spectra()
 
     quasars = lc.load_quasar_catalog()
-    for quasar in quasars:
+    for quasar in quasars[0:1]:
         spectra.get_SDSS_spectrum(quasar["ra"],quasar["dec"])
 

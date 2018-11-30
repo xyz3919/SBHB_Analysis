@@ -6,6 +6,7 @@ from astropy.coordinates import SkyCoord
 from astropy import units as u
 import query 
 import useful_funcs
+import math
 from math import log10, radians, pi,cos,sin
 #import plot
 
@@ -116,7 +117,12 @@ class lc:
                                 dec=objects["dec"]*u.degree)
         dist = coor_quasar.separation(coor_objects)
         matched_quasars = objects[dist<1.0*u.arcsec ]
-        return matched_quasars
+        clean_objects = matched_quasars[(matched_quasars["flux_psf"]>0) &\
+                                   (matched_quasars["flux_psf"]<10**10) &\
+                                   (matched_quasars["mjd_obs"]>20000)&\
+                                   (matched_quasars["mjd_obs"]<90000)]
+        return clean_objects
+
 
     def generate_firstcut_lightcurve(self,quasar,year):
 
@@ -153,7 +159,12 @@ class lc:
             else:
                 quasar_cal = self.calibrate_mag(matched_quasar,zeropoint,zeropoint_rms)
                 final_list = np.append(final_list,quasar_cal)
-        return final_list
+        clean_objects = final_list[(final_list["flux_psf"]>0) &\
+                                   (final_list["flux_psf"]<10**10) &\
+                                   (final_list["mjd_obs"]>20000)&\
+                                   (final_list["mjd_obs"]<90000)]
+        return clean_objects
+
     def convert_flux_to_mag(self,total_quasars):
 
         total_quasars["flux_err_psf"] = total_quasars["flux_err_psf"]*1.09/\
@@ -180,31 +191,27 @@ class lc:
                            for row in objects[["mjd_"+band,"mag_psf_"+band,\
                            "mag_err_psf_"+band]]]),dtype=dtype_SDSS)
             clean_objects = objects_band[(objects_band["mag_psf"]<30) &\
-                                         (objects_band["mag_psf"]>10) ]
+                                         (objects_band["mag_psf"]>10) &\
+                                         (objects_band["mjd_obs"]>10000)&\
+                                         (objects_band["mjd_obs"]<80000)]
             matched_quasars = np.append(matched_quasars,clean_objects)
 
         return matched_quasars
-
-    def spectrum_to_mag(self,lamb_spec,flux_spec,lamb_trans,ratio_trans):
-
-        c = 3*10**10*10**8 # A/s
-        ratio_spec = np.interp(lamb_spec,lamb_trans,ratio_trans)
-        STL = flux_spec*lamb_spec*ratio_spec
-        T_L = ratio_spec/lamb_spec
-        f_nu = 1./c*np.trapz(STL,x=lamb_spec)/np.trapz(T_L,x=lamb_spec)
-        m_AB = -2.5*np.log10(f_nu)-48.6
-
-        return m_AB
 
 class spectra:
 
     def __init__(self):
 
         self.query_SDSS = query.query_SDSS()
-        self.dir_spec = "spectra/"
+        self.dir_filter = "filters/"  # create filter info dir
+        useful_funcs.create_dir(self.dir_filter)
+        self.dir_spec = "spectra/" # create dir for spectra
         useful_funcs.create_dir(self.dir_spec)
+        self.band_list = ["g","r","i","z"]
+        self.get_DES_SDSS_bandpass()
 
-    def get_SDSS_spectrum(self,ra,dec,dist=0.1):
+
+    def get_SDSS_spectrum(self,ra,dec,dist=4):
 
         ra_lower = ra - cos(radians(dec))*0.5*dist/3600.0 
         ra_upper = ra + cos(radians(dec))*0.5*dist/3600.0
@@ -226,8 +233,75 @@ class spectra:
         variables = (survey,run2d,plateid.zfill(4),plateid.zfill(4),\
                     mjd,fiberid.zfill(4))
         name = useful_funcs.degtohexname(ra,dec)
-        os.system("wget "+url_spectrum % variables+" -O "+self.dir_spec+name+\
-                  ".fits")
+        useful_funcs.download_file(url_spectrum % variables, \
+                                   self.dir_spec+name+".fits")
+
+    def get_DES_SDSS_bandpass(self):
+        
+        info = {"SDSS":{},"DES":{}}
+
+        # dowload SDSS bandpass
+        url_filter_SDSS = "http://classic.sdss.org/dr3/instruments/imager/"+\
+                          "filters/%s.dat"
+        for band in self.band_list:
+            useful_funcs.download_file(url_filter_SDSS % (band),
+                                       self.dir_filter+"SDSS_"+band+".dat")
+
+        # dowload DES bandpass
+        url_filter_DES ="http://www.ctio.noao.edu/noao/sites/default/files/DECam/"+\
+                        "STD_BANDPASSES_DR1.dat"
+        useful_funcs.download_file(url_filter_DES,self.dir_filter+"DES.dat")
+
+        # load SDSS bandpass info
+        for band in self.band_list:
+            data_SDSS = np.genfromtxt(self.dir_filter+"SDSS_"+band+".dat")
+            info["SDSS"].update({band:data_SDSS[:,[0,1]]})
+
+        # load DES bandpass info
+        band_num = {"g":1,"r":2,"i":3,"z":4}
+        data_DES = np.genfromtxt(self.dir_filter+"DES.dat")
+        for band in self.band_list:
+            info["DES"].update({band:data_DES[:,[0,band_num[band]]]})
+        self.filter_info = info
+
+    def spectrum_to_mag(self,lamb_spec,flux_spec,lamb_trans,ratio_trans):
+
+        c = 3*10**10*10**8 # A/s
+        ratio_spec = np.interp(lamb_spec,lamb_trans,ratio_trans)
+        STL = flux_spec*lamb_spec*ratio_spec
+        T_L = ratio_spec/lamb_spec
+        f_nu = 1./c*np.trapz(STL,x=lamb_spec)/np.trapz(T_L,x=lamb_spec)
+        m_AB = -2.5*np.log10(f_nu)-48.6
+
+        return m_AB
+
+    def mag_SDSS_to_DES(self,name):
+
+        mag_diff = {}
+        if not os.path.isfile(self.dir_spec+name+".fits"):
+            for band in self.band_list : mag_diff.update({band:0.0})
+            return mag_diff
+
+        hdul = fits.open(self.dir_spec+name+".fits")
+        data =  hdul[1].data
+        data_clean = data[(data["ivar"]>0) & (data["and_mask"] == 0)]
+
+        lambda_q = 10**data_clean["loglam"]
+        flux_q =  10**(-17)*data_clean["flux"]
+        for band in self.band_list :
+            trans_SDSS,trans_DES = self.filter_info["SDSS"][band],\
+                                   self.filter_info["DES"][band]
+            mag_SDSS =  self.spectrum_to_mag(lambda_q,flux_q,trans_SDSS[:,0],\
+                                             trans_SDSS[:,1])
+            mag_DES =  self.spectrum_to_mag(lambda_q,flux_q,trans_DES[:,0],\
+                                            trans_DES[:,1])
+            #print ("mag_SDSS: "+str(mag_SDSS)+" ; mag_DES: "+str(mag_DES))
+            diff = mag_DES-mag_SDSS
+            print (band+": m_DES - m_SDSS =" + str(diff))
+            if math.isnan(diff): mag_diff.update({band:0.0})
+            else: mag_diff.update({band:diff})
+
+        return mag_diff
 
 
 

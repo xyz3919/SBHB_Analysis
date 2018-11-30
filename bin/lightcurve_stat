@@ -11,6 +11,7 @@ if __name__ == '__main__':
 
     lc = main.lc("DES/")
     lc_info = np.genfromtxt(lc.lc_dir+lc.lc_info_file,delimiter=",",\
+              skip_header=1,\
               dtype = [("name","|S20"),("ra",float),("dec",float),\
                        ("z",float),("flag_0","|S6"),("flag_1","|S6"),\
                        ("flag_2","|S6"),("flag_3","|S15"),\
@@ -19,6 +20,7 @@ if __name__ == '__main__':
                        ("N_DES_g",int),("N_DES_r",int),("N_DES_i",int),\
                        ("N_DES_z",int),("N_SDSS_g",int),("N_SDSS_r",int),\
                        ("N_SDSS_i",int),("N_SDSS_z",int)])
+    print ("Parent_sample: "+str(len(lc_info)))
     N = 0
     clean_sample = np.array([],dtype=lc_info.dtype)
     for row in lc_info:
@@ -48,5 +50,16 @@ if __name__ == '__main__':
     number_epochs_SDSS.savefig("plot/","SDSS_epochs.png",\
                                "Number of epochs in SDSS")
 
+    np.savetxt(lc.lc_dir+"lc_clean.csv",clean_sample,fmt="%s,"*18+"%s",\
+               header=",".join(clean_sample.dtype.names))
+
+    # cheack where the quasar from
+    in_DR7_DR14 = np.any([clean_sample["flag_0"]==" DR14Q",\
+                          clean_sample["flag_1"]=="  DR7Q"],axis=0)
+    number_DR7_DR14 = len(clean_sample[in_DR7_DR14])
+
+    print ("Number in SDSS DR7/14:"+str( number_DR7_DR14))
+    print clean_sample[np.invert(in_DR7_DR14)]
+            
 
 

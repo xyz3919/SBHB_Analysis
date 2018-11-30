@@ -1,0 +1,95 @@
+#!/usr/bin/env python
+# 
+import timeit
+import numpy as np
+from lightcurve import main
+#from lightcurve import plot
+from lightcurve import query
+import useful_funcs
+import sys
+import multiprocessing as mp
+
+
+def func(quasar):
+
+    lc = main.lc("DES/")
+    lc_SDSS = main.lc("SDSS/")
+    save_line = ""
+    name = useful_funcs.degtohexname(quasar["ra"],quasar["dec"])
+    useful_funcs.print_and_write(lc.log,"- "+name+"\n")
+    useful_funcs.create_dir(lc.save_dir+name)
+    # make SV-Y4 light curves
+    SV_Y4_quasars = lc.generate_finalcut_lightcurve(quasar)
+    # mkae Y5 light curves
+    Y5_quasars = lc.generate_firstcut_lightcurve(quasar,"Y5N")
+    total_quasars = np.append(SV_Y4_quasars,Y5_quasars)
+    total_quasars = lc.convert_flux_to_mag(total_quasars)
+    total_quasars.sort(order="mjd_obs")
+
+    save_line = save_line+name+","+",".join(map(str,quasar))
+    for band in lc.band_list:
+        quasars_in_band = total_quasars[total_quasars["band"]==band]
+        if len(quasars_in_band) == 0 :
+            print "No data found in "+band+" !"
+            save_line = save_line+",0"
+        else:
+            
+            np.savetxt(lc.save_dir+name+"/"+band+".csv",\
+                       quasars_in_band[["mjd_obs","mag_psf",\
+                       "mag_err_psf"]],\
+                       fmt="%f,%f,%f",\
+                       header="mjd_obs,mag_psf,mag_err_psf")
+            
+            save_line = save_line+","+str(len(quasars_in_band))
+    # make SDSS light curves
+    useful_funcs.create_dir(lc_SDSS.save_dir+name)
+    useful_funcs.create_dir(lc_SDSS.lc_dir+"SDSS_corr/"+name)
+    SDSS_quasars = lc_SDSS.generate_SDSS_lightcurve(quasar)
+
+    # adjust to DES system
+    spec = main.spectra()
+    spec.get_SDSS_spectrum(quasar["ra"],quasar["dec"])
+    mag_diff = spec.mag_SDSS_to_DES(name)
+
+    for band in lc_SDSS.band_list:
+        quasars_in_band = SDSS_quasars[SDSS_quasars["band"]==band]
+        if len(quasars_in_band) == 0 :
+            print "No data found in "+band+" !"
+            save_line = save_line+",0"
+        else:
+            np.savetxt(lc_SDSS.save_dir+name+"/"+band+".csv",\
+                        quasars_in_band[["mjd_obs","mag_psf",\
+                       "mag_err_psf"]],fmt="%f,%f,%f",\
+                       header="mjd_obs,mag_psf,mag_err_psf")
+            quasars_in_band["mag_psf"] = quasars_in_band["mag_psf"]+\
+                                         mag_diff[band]
+            np.savetxt(lc_SDSS.lc_dir+"SDSS_corr/"+name+"/"+band+".csv",\
+                        quasars_in_band[["mjd_obs","mag_psf",\
+                       "mag_err_psf"]],fmt="%f,%f,%f",\
+                       header="mjd_obs,mag_psf,mag_err_psf")
+
+            
+            save_line = save_line+","+str(len(quasars_in_band))
+
+
+
+    return save_line
+
+if __name__ == '__main__':
+
+    start = timeit.default_timer()
+    lc = main.lc("DES/")
+    lc_SDSS = main.lc("SDSS/")
+    useful_funcs.create_dir(lc_SDSS.lc_dir+"SDSS_corr/")
+    quasar_catalog = lc.load_quasar_catalog()
+    lc.write_header(quasar_catalog)
+    pool = mp.Pool(mp.cpu_count()*3/4)
+    save_lines = pool.map(func,quasar_catalog)
+    f = open(lc.lc_dir+lc.lc_info_file,"a")
+    f.write("\n".join(save_lines))
+    
+    f.close()
+    stop = timeit.default_timer()
+    useful_funcs.print_and_write(lc.log,"Execution Time:"+\
+                                 str((stop-start)/60.)+" mins")
+

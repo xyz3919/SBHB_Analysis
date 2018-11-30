@@ -14,7 +14,7 @@ if __name__ == '__main__':
     lc_SDSS = main.lc("SDSS/")
     quasar_catalog = lc.load_quasar_catalog()
     lc.write_header(quasar_catalog)
-    for quasar in quasar_catalog[306:]:
+    for quasar in quasar_catalog:
         name = useful_funcs.degtohexname(quasar["ra"],quasar["dec"])
         useful_funcs.print_and_write(lc.log,"- "+name+"\n")
         useful_funcs.create_dir(lc.save_dir+name)
@@ -59,6 +59,8 @@ if __name__ == '__main__':
                            quasars_in_band[["mjd_obs","mag_psf",\
                            "mag_err_psf"]],fmt="%f,%f,%f",\
                            header="mjd_obs,mag_psf,mag_err_psf")
+
+
 
         f.write("\n")
         f.close()

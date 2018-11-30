@@ -51,7 +51,7 @@ if __name__ == '__main__':
 
     # download the J0252 spectrum  
     
-    lc = main.lc("DES/")
+    spec = main.spectra()
 
     url_spectrum = "https://data.sdss.org/sas/dr14/eboss/spectro/redux/v5_10_0/spectra/lite/7820/spec-7820-56984-0470.fits"
     useful_funcs.download_file(url_spectrum,dir_filter+"spectrum.fits")
@@ -63,8 +63,8 @@ if __name__ == '__main__':
     flux_q =  10**(-17)*data["flux"]
     for band in band_list :
         trans_SDSS,trans_DES = info["SDSS"][band],info["DES"][band]
-        mag_SDSS =  lc.spectrum_to_mag(lambda_q,flux_q,trans_SDSS[:,0],trans_SDSS[:,1])
-        mag_DES =  lc.spectrum_to_mag(lambda_q,flux_q,trans_DES[:,0],trans_DES[:,1])
+        mag_SDSS =  spec.spectrum_to_mag(lambda_q,flux_q,trans_SDSS[:,0],trans_SDSS[:,1])
+        mag_DES =  spec.spectrum_to_mag(lambda_q,flux_q,trans_DES[:,0],trans_DES[:,1])
         #print ("mag_SDSS: "+str(mag_SDSS)+" ; mag_DES: "+str(mag_DES))
         print (band+": m_DES - m_SDSS =" + str(mag_DES-mag_SDSS))
 

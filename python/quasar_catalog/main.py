@@ -244,7 +244,7 @@ class catalog:
             adding_list = np.array([tuple(data2[["ra","dec","z"]]\
                           [idx_not_2[i]])+("     ",)*(flag_number-1)+\
                           ("MQ_"+data2["flag"][idx_not_2[i]].split(" ")[0]+"_"+\
-                          data2[idx_2[i]]["where"],)],\
+                          data2[idx_not_2[i]]["where"],)],\
                           dtype=dtype)
             final_list = np.append(final_list,adding_list)
 
