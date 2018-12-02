@@ -51,7 +51,7 @@ if __name__ == '__main__':
                                "Number of epochs in SDSS")
 
     np.savetxt(lc.lc_dir+"lc_clean.csv",clean_sample,fmt="%s,"*18+"%s",\
-               header=",".join(clean_sample.dtype.names))
+               header=",".join(clean_sample.dtype.names),comments="")
 
     # cheack where the quasar from
     in_DR7_DR14 = np.any([clean_sample["flag_0"]==" DR14Q",\

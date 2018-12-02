@@ -21,7 +21,14 @@ eups distrib install  despymisc 1.0.4+2
 eups distrib install astropy 1.1.2+6
 eups distrib install scipy 0.14.0+12
 eups distrib install matplotlib 1.5.3+2
+eups distrib install pandas  0.15.2+5
 
 # install astroquery by pip
 
 pip install astroquery
+
+# install astroML
+
+pip install astroML
+pip install astroML_addons
+pip install emcee

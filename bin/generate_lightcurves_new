@@ -37,7 +37,7 @@ def func(quasar):
             np.savetxt(lc.save_dir+name+"/"+band+".csv",\
                        quasars_in_band[["mjd_obs","mag_psf",\
                        "mag_err_psf"]],\
-                       fmt="%f,%f,%f",\
+                       fmt="%f,%f,%f",comments='',\
                        header="mjd_obs,mag_psf,mag_err_psf")
             
             save_line = save_line+","+str(len(quasars_in_band))
@@ -59,13 +59,13 @@ def func(quasar):
         else:
             np.savetxt(lc_SDSS.save_dir+name+"/"+band+".csv",\
                         quasars_in_band[["mjd_obs","mag_psf",\
-                       "mag_err_psf"]],fmt="%f,%f,%f",\
+                       "mag_err_psf"]],fmt="%f,%f,%f",comments='',\
                        header="mjd_obs,mag_psf,mag_err_psf")
             quasars_in_band["mag_psf"] = quasars_in_band["mag_psf"]+\
                                          mag_diff[band]
             np.savetxt(lc_SDSS.lc_dir+"SDSS_corr/"+name+"/"+band+".csv",\
                         quasars_in_band[["mjd_obs","mag_psf",\
-                       "mag_err_psf"]],fmt="%f,%f,%f",\
+                       "mag_err_psf"]],fmt="%f,%f,%f",comments='',\
                        header="mjd_obs,mag_psf,mag_err_psf")
 
             
