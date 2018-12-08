@@ -5,7 +5,7 @@
 ### setup PATH and PYTHONPATH
 
 Need to run them first everytime, when you want to run the script in a new terminal. 
-If you don't want to setup the path evrytime. You can replace the `pwd` with absolute path and put those two lines into you ~/.bashrc.
+If you don't want to setup the path evrytime. You can replace the `pwd` with absolute path and put those two lines into your ~/.bashrc.
 ```
 export PATH=$PATH:`pwd`/bin
 export PYTHONPATH=$PYTHONPATH:`pwd`/python
@@ -55,7 +55,8 @@ Once we have the quasar catalog, we then need to make the optical light curves f
 ```
 generate_lightcurves
 ```
-This program will query DES and SDSS strip 82 database and download the single-epoch information. We also correct the magnitude difference due to different telescope systems.(tiny but important, SDSS-> DES).
+This program will query DES and SDSS strip 82 database and download the single-epoch information. 
+We also correct the magnitude difference due to different telescope systems.(tiny but important, SDSS-> DES).
 
 ```
 lightcurve_stat
