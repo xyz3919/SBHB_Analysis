@@ -89,9 +89,12 @@ class query_DES:
         else:
             return None
 
-    def get_firstcut_objects_from_filename(self,filename,tag):
+    def get_firstcut_objects_from_filename(self,filename,tag,star=False):
 
-        get_list = "select distinct ra,dec,MJD_OBS,FLUX_PSF,FLUXERR_PSF,FLUX_AUTO,FLUXERR_AUTO,o.BAND from SE_object o ,proctag p, pfw_attempt f, exposure e where e.expnum=o.expnum and 'D00'||to_char(o.expnum)=f.unitname and f.id=p.pfw_attempt_id and p.tag='"+str(tag)+"' and o.filename=:filename and Flags = 0 and imaflags_iso = 0"
+        if star:
+            get_list = "select distinct ra,dec,MJD_OBS,FLUX_PSF,FLUXERR_PSF,FLUX_AUTO,FLUXERR_AUTO,o.BAND from SE_object o ,proctag p, pfw_attempt f, exposure e where e.expnum=o.expnum and 'D00'||to_char(o.expnum)=f.unitname and f.id=p.pfw_attempt_id and p.tag='"+str(tag)+"' and o.filename=:filename and Flags = 0 and imaflags_iso = 0 and spread_model < 0.005"
+        else:
+            get_list = "select distinct ra,dec,MJD_OBS,FLUX_PSF,FLUXERR_PSF,FLUX_AUTO,FLUXERR_AUTO,o.BAND from SE_object o ,proctag p, pfw_attempt f, exposure e where e.expnum=o.expnum and 'D00'||to_char(o.expnum)=f.unitname and f.id=p.pfw_attempt_id and p.tag='"+str(tag)+"' and o.filename=:filename and Flags = 0 and imaflags_iso = 0"
         self.cur_oper.execute(get_list,filename=filename)
         info_list = self.cur_oper.fetchall()
         objects = np.array(info_list,dtype=self.dtype_single)

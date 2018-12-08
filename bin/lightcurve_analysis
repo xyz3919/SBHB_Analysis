@@ -1,13 +1,40 @@
 #!/usr/bin/env python
 # 
+import timeit
 import numpy as np
 from period_analysis import main
+import multiprocessing as mp
 import useful_funcs
+import traceback
+
+def task(quasar):
+
+    try:
+        start = timeit.default_timer()
+        analysis = main.analysis()
+        analysis.analyze_lightcurve(quasar)
+        stop = timeit.default_timer()
+        useful_funcs.print_and_write("log_period_analysis",quasar["name"]+\
+                                 " is finished ("+str((stop-start)/60.)+" mins)")
+    except Exception as e:
+        traceback.print_exc()
+        print quasar
+        raise e
+
+    return 0
 
 
 if __name__ == '__main__':
 
+    start = timeit.default_timer()
     analysis = main.analysis()
-    quasars = analysis.read_quasar_catalog()
-    
-    analysis.analyze_lightcurve(quasars.loc[0])
+    quasar_catalog = analysis.read_quasar_catalog()
+
+    pool = mp.Pool(mp.cpu_count()*6/8)
+    save_lines = pool.map(task,quasar_catalog)
+    #analysis.test = True
+    #analysis.analyze_lightcurve(quasar_catalog[511])
+
+    stop = timeit.default_timer()
+    useful_funcs.print_and_write("log_period_analysis",\
+                                 "Execution Time:"+str((stop-start)/60.)+" mins")

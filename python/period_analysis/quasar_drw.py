@@ -25,16 +25,14 @@ class quasar_drw:
         self.error    = np.array(error,  dtype=np.float64)
         self.redshift = float(redshift)
         self._preprocessed = False
-        
+
         if ( len(time) != len(signal) ) or ( len(time)!= len(error) ):
             print("[quasar_drw] Error in input data: time, signal, error must have the same length.")
         
         self._sort_data()
         if preprocess == True:
             self._preprocess()
-        
         self.__initiate()
-        
 
     
     def __initiate(self):
@@ -158,7 +156,6 @@ class quasar_drw:
         b_sample   = random_state.lognormal(mean=np.log(b_center),   sigma=1.0, size=nwalkers)
 #        b_sample   = np.random.lognormal(mean=np.log(b_center),   sigma=0.1, size=nwalkers)
         
-        print c_sample
         tau_sample, c_sample, b_sample = np.log(tau_sample), np.log(c_sample), np.log(b_sample)
         
         for i in range(nwalkers):
@@ -167,7 +164,7 @@ class quasar_drw:
         sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=(time, signal, error, z), a=4.0)
         
         # import random state 
-        sampler.random_state = random_state
+        sampler.random_state = random_state.get_state()
         # start MCMC
         sampler.run_mcmc(pos, Nstep)
     
@@ -176,12 +173,14 @@ class quasar_drw:
         samples = sampler.chain[:, burnin:, :].reshape((-1, ndim))
         ## depending on the preference, return whatever you prefer
         return samples
+
 #        return [[tau_center,c_center,b_center]]
 
     def generate_mock_lightcurve(self,tau,b,c,time,z,random_state=np.random.RandomState(0)):
+
   
         time_res = time/(1+z)
-        time_res_cont = np.linspace(min(time_res),max(time_res),int(max(time_res)--min(time_res)))
+        time_res_cont = np.linspace(min(time_res),max(time_res),int(max(time_res)-min(time_res)))
         xmean = b*tau
         SFinf = np.sqrt(c*tau/2.)
         lightcurve_DRW_res_cont = generate_damped_RW(time_res_cont,tau,z,xmean=xmean,SFinf=SFinf,random_state=random_state)
@@ -225,12 +224,13 @@ class quasar_drw:
     
     
     def _no_outlier(self, sigma=5, iters=100):
+
         idx = ((np.abs(self.signal) < 100.) & (self.signal > 0.))
         self.time   = self.time[idx]
         self.signal = self.signal[idx]
         self.error  = self.error[idx]
         
-        after_clip = sigma_clip(self.signal, sigma=sigma, iters=iters, cenfunc=median, copy=True)
+        after_clip = sigma_clip(self.signal, sigma=sigma, iters=iters, copy=True)
         
         idx = ~(after_clip.mask)
         self.time   = self.time[idx]

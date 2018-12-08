@@ -85,10 +85,11 @@ if __name__ == '__main__':
     lc.write_header(quasar_catalog)
     pool = mp.Pool(mp.cpu_count()*3/4)
     save_lines = pool.map(func,quasar_catalog)
+
     f = open(lc.lc_dir+lc.lc_info_file,"a")
     f.write("\n".join(save_lines))
-    
     f.close()
+
     stop = timeit.default_timer()
     useful_funcs.print_and_write(lc.log,"Execution Time:"+\
                                  str((stop-start)/60.)+" mins")

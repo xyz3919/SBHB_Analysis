@@ -32,10 +32,10 @@ class plot:
     def plot_histogram(self,number_array,band):
 
         ax = self.ax_list[band]
+        ax.set_yscale("log",nonposy='clip')
         ax.hist(number_array,bins=40,\
                 range=(0,np.percentile(number_array,99)*1.05),\
                 facecolor = self.color_list[band])
-        ax.set_yscale("log")
         if band == "i" or  band == "z":
             ax.set_xlabel("Number of epochs",size=14)
         if band == "g" or  band == "i":
@@ -65,6 +65,12 @@ class plot:
         print("Saving "+dir_output+name)
         self.f.savefig(dir_output+name,dpi=150)
         plt.close()
+
+def plot_magnitude_comparison(x,y,out_dir,mjd):
+
+    plt.scatter(x,y)
+    plt.savefig(out_dir+str(mjd)+".png")
+    plt.close()
 
 
 

@@ -8,4 +8,4 @@ setup despymisc
 setup matplotlib
 setup pandas
 
-#PYTHONPATH=~/python/lib/python2.7/site-packages:$PYTHONPATH
+PYTHONPATH=~/python/lib/python2.7/site-packages:$PYTHONPATH

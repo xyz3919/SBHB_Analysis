@@ -25,10 +25,14 @@ eups distrib install pandas  0.15.2+5
 
 # install astroquery by pip
 
-pip install astroquery
+python -m ensurepip --default-pip
+
+pip_used=`which pip`
+
+$pip_used install astroquery
 
 # install astroML
 
-pip install astroML
-pip install astroML_addons
-pip install emcee
+$pip_used install astroML
+$pip_used install astroML_addons
+$pip_used install emcee

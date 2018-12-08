@@ -8,7 +8,7 @@ import query
 import useful_funcs
 import math
 from math import log10, radians, pi,cos,sin
-#import plot
+import plot
 
 class lc:
 
@@ -57,10 +57,11 @@ class lc:
         f.write(",N_SDSS_g,N_SDSS_r,N_SDSS_i,N_SDSS_z\n")
         f.close()
 
-    def get_zeropoint(self,data,data_coadd,band):
-
+    def get_zeropoint(self,filename,tag,data_coadd,band):
+        
+        data = self.query.get_firstcut_objects_from_filename(filename,tag,star=True)
         mag_psf = -2.5*np.log10(data["flux_psf"])
-        data_clean = data[(mag_psf< 80) & (mag_psf< 80)]
+        data_clean = data[(mag_psf< 99) & (mag_psf> -99)]
         if len(data) == 0: return None,None
         coor_single = SkyCoord(ra=data_clean["ra"]*u.degree,
                                dec=data_clean["dec"]*u.degree)
@@ -70,14 +71,14 @@ class lc:
         match_indices = match_sources[0][match_sources[1]<1.0*u.arcsec]
         matched_data1 = data_clean[match_sources[1]<1.0*u.arcsec]
         matched_data2 = data_coadd[match_indices]
-        #plot.plot_magnitude_comparison(matched_data1["MAG_PSF"],matched_data2["MAG_PSF_"+band],self.save_dir,mjd_obs)
         mag_psf = -2.5*np.log10(matched_data1["flux_psf"])
         mag_diff = matched_data2["mag_psf_"+band]-mag_psf
         mag_diff_clean = mag_diff[(mag_diff<40)&(mag_diff>20)]
+        plot.plot_magnitude_comparison(matched_data2["mag_psf_"+band][(mag_diff<40)&(mag_diff>20)],mag_diff_clean,"plot/","test")
         print "Number of reference stars: ",len(mag_diff_clean)
-        if len(mag_diff)>=3:
-            zeropoint = np.median(mag_diff)
-            zeropoint_rms = np.std(mag_diff)/np.sqrt(len(mag_diff))
+        if len(mag_diff_clean)>=3:
+            zeropoint = np.median(mag_diff_clean)
+            zeropoint_rms = np.std(mag_diff_clean)/np.sqrt(len(mag_diff_clean))
             return zeropoint,zeropoint_rms
         else: return None,None
 
@@ -145,11 +146,11 @@ class lc:
         # get magnitude of quasar in each image
         N = 1
         final_list = np.array([],dtype=self.query.dtype_single)
-        for filename in filename_list["filename"]:
+        for filename in filename_list_clean["filename"]:
             print filename
-            data = self.query.get_firstcut_objects_from_filename(filename,tag)
+            data = self.query.get_firstcut_objects_from_filename(filename,tag,star=False)
             band = filename.split("_")[1]
-            zeropoint,zeropoint_rms = self.get_zeropoint(data,coadd_data,band)
+            zeropoint,zeropoint_rms = self.get_zeropoint(filename,tag,coadd_data,band)
             matched_quasar = self.get_target_quasar(quasar["ra"],quasar["dec"],\
                                                     data)
             if (zeropoint is None) or (zeropoint_rms is None):

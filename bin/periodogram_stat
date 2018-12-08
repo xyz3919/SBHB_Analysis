@@ -1,0 +1,17 @@
+#!/usr/bin/env python
+# 
+import numpy as np
+from period_analysis import main
+import useful_funcs
+
+
+if __name__ == '__main__':
+
+
+    analysis = main.analysis()
+    #analysis.record_confidence_peak()
+    #analysis.find_strong_candidates()
+
+    analysis.make_pdf_for_strong_candidates()
+
+

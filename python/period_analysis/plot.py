@@ -23,8 +23,8 @@ class plot:
                             "i":self.axes[1,0],"z":self.axes[1,1]}
         self.color_list = {"g":"g","r":"orange",\
                            "i":"brown","z":"purple"}
-        self.fmt_list = {"DES":{"marker":"o","markersize":6},\
-                         "SDSS_corr":{"marker":"s","markersize":6}\
+        self.fmt_list = {"DES":{"fmt":"o","markersize":5},\
+                         "SDSS_corr":{"fmt":"s","markersize":5}\
                         }
 
     def plot(self,x,y,band,log=False):
@@ -58,7 +58,7 @@ class plot:
             ax.set_xlabel("Period(yr)")
         if band == "g" or  band == "i":
             ax.set_ylabel("Power")
-        ax.annotate(band, xy=(-12, -12), xycoords='axes points',
+        ax.annotate(band, xy=(0.95, 0.90),xycoords='axes fraction',\
                     size=12, ha='right', va='top', color=color_list[band],
                     bbox=dict(boxstyle='round', fc='w'))
 #        ax.legend()
@@ -75,14 +75,14 @@ class plot:
 
     def plot_boost_periodogram(self,_freq, psd,error,band):
 
-        sigma_level = 1
+        sigma_level = 3
         upper = psd+error*sigma_level
         lower = psd-error*sigma_level
         ax = self.ax_list[band]
         ax.plot(_freq/365,upper,label=band,c=self.color_list[band],\
-                linestyle="--",linewidth=0.5)
+                linewidth=0.5)
         ax.plot(_freq/365,lower,label=band,c=self.color_list[band],\
-                linestyle="--",linewidth=0.5)
+                linewidth=0.5)
 
 
     def plot_confidence_level(self,_freq, psd_total,band):
@@ -94,29 +94,33 @@ class plot:
         psd_at_each__freq = zip(*psd_total)         
         percentiles = [68.27,95.45,99.0,99.74,99.99]
         for percentile in percentiles:
-           bounday_psd_at_each__freq = [np.percentile(psd,50+percentile/2.) for psd in psd_at_each__freq]
-           ax.plot(_freq/365,bounday_psd_at_each__freq,"--",c="black",linewidth=0.3)
+           bounday_psd_at_each__freq = [np.percentile(psd,percentile) for psd in psd_at_each__freq]
+           ax.plot(_freq/365,bounday_psd_at_each__freq,"--",c="black",linewidth=0.5)
 
     def plot_light_curve(self,time,signal,error,survey,band):
 
         if survey in self.fmt_list.keys() : fmt = self.fmt_list[survey]
-        else : fmt = {"marker":"x","markersize":6}
+        else : fmt = {"marker":"x","markersize":5}
         ax = self.ax_list[band]
         ax.errorbar(time,signal,yerr=error,label=band,c=self.color_list[band],\
                     **fmt)
-        ax.set_ylim(np.max(signal)+0.1,np.min(signal)-0.1)
+        bottom,top = ax.get_ylim()
+        if bottom > np.min(signal)-0.5: bottom = np.min(signal)-0.5
+        if top < np.max(signal)+0.5: top = np.max(signal)+0.5
+        ax.set_ylim(bottom,top)
         if band == "z":
             ax.set_xlabel("MJD")
-        ax.set_ylabel("Mag") 
-        ax.annotate(band, xy=(-12, -12),
-                    size=12, ha='right', va='top', color=color_list[band],
+        #ax.set_ylabel("Mag") 
+        ax.set_ylabel("Flux(nanomaggy)")
+        ax.annotate(band, xy=(0.98, 0.9),xycoords='axes fraction',\
+                    size=12, ha='right', va='top', color=self.color_list[band],\
                     bbox=dict(boxstyle='round', fc='w'))
 
     def plot_fit_curve(self,time,signal,band):
 
         ax = self.ax_list[band]
         ax.plot(time,signal,label=band,c=self.color_list[band],linestyle="--",\
-                linewidth=0.5)
+                linewidth=1)
 
     def plot_mock_curve(self,time,signal,band):
 
