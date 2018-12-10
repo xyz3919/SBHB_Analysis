@@ -1,0 +1,78 @@
+#!/usr/bin/env python
+# 
+import timeit
+import numpy as np
+import pandas as pd
+#from lightcurve import main
+#from lightcurve import plot
+#from lightcurve import query
+import useful_funcs
+import sys
+import os
+
+def funpack_one(input_dir,output_dir,catalog,band):
+
+    if not os.path.exists(output_dir+str(catalog["date"])+"_"+band+".fits "):
+        os.system("software/bin/funpack -O "+\
+                  output_dir+str(catalog["date"])+"_"+band+".fits "+\
+                  input_dir+catalog["Basename"]+".fits.fz")
+    else: print("The image already existed !")
+
+def run_swarp(input_dir,output_dir,catalog,band):
+
+    for index,row in catalog.iterrows():
+        if not os.path.exists(input_dir+row["Basename"]+".fits"):
+            os.system("software/bin/funpack -O "+\
+                      input_dir+row["Basename"]+".fits "+\
+                      input_dir+row["Basename"]+".fits.fz")
+    
+    outfile_name = output_dir+str(catalog["date"].unique()[0])+"_"+band+".fits"
+    if not os.path.exists(outfile_name):
+        image_list = ((input_dir+"%s.fits[SCI] ")*len(catalog)) % \
+                      tuple(catalog["Basename"])
+        os.system("swarp "+image_list+" -WRITE_XML N -IMAGEOUT_NAME "+\
+                  outfile_name)
+        os.system("rm coadd.weight.fits")
+    else: print("Combined image already existed !")
+
+if __name__ == '__main__':
+
+
+    followup_dir = "followup/"
+    useful_funcs.create_dir(followup_dir)
+    name = "J025214.67-002813.7"
+    J0252_dir = followup_dir+name+"/"
+    useful_funcs.create_dir(J0252_dir)
+    LCO_dir = "LCO/"
+    useful_funcs.create_dir(J0252_dir+LCO_dir)
+    
+    # create dir for raw images
+    raw_dir = J0252_dir+LCO_dir+"raw/"
+    if not os.path.exists(raw_dir):
+        useful_funcs.create_dir(raw_dir)
+        print ("Please download reduced images from LCO and save in "+raw_dir)
+        exit(1)
+    if not os.path.exists(J0252_dir+LCO_dir+"overview.csv"):
+        print ("Please dowload image information from LCO and save in"+\
+                J0252_dir+LCO_dir+"overview.csv")
+        exit(1)
+    image_dir = J0252_dir+LCO_dir+"images/"
+    useful_funcs.create_dir(image_dir)
+
+    catalog = pd.read_csv(J0252_dir+LCO_dir+"overview.csv")
+    catalog["Time"] = pd.to_datetime(catalog["Time"])
+    catalog["date"] =  catalog["Time"].dt.date
+    dates = catalog["date"].unique()
+
+    bands = {"g":"gp","r":"rp","i":"ip","z":"zs"}
+    for date in dates:
+        catalog_in_epoch = catalog[catalog["date"]==date]
+        for band in bands.keys():
+            catalog_in_band = catalog_in_epoch[\
+                              catalog_in_epoch["Filter"] == bands[band]]
+            num_exp = len(catalog_in_band)
+            if num_exp == 1:
+                funpack(raw_dir,image_dir,catalog_in_band,band)
+            if num_exp > 1:
+                run_swarp(raw_dir,image_dir,catalog_in_band,band)
+
