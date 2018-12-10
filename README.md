@@ -1,4 +1,4 @@
-# Project - Supermassive Black Holes Finder
+# Project - Supermassive Black Hole Binary Finder
 
 ## Before running any analysis
 
