@@ -100,7 +100,7 @@ class plot:
     def plot_light_curve(self,time,signal,error,survey,band):
 
         if survey in self.fmt_list.keys() : fmt = self.fmt_list[survey]
-        else : fmt = {"marker":"x","markersize":5}
+        else : fmt = {"fmt":"x","markersize":5}
         ax = self.ax_list[band]
         ax.errorbar(time,signal,yerr=error,label=band,c=self.color_list[band],\
                     **fmt)

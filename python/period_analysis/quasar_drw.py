@@ -155,6 +155,7 @@ class quasar_drw:
 #        c_sample   = np.random.lognormal(mean=np.log(c_center),   sigma=0.1, size=nwalkers)
         b_sample   = random_state.lognormal(mean=np.log(b_center),   sigma=1.0, size=nwalkers)
 #        b_sample   = np.random.lognormal(mean=np.log(b_center),   sigma=0.1, size=nwalkers)
+
         
         tau_sample, c_sample, b_sample = np.log(tau_sample), np.log(c_sample), np.log(b_sample)
         
@@ -225,7 +226,9 @@ class quasar_drw:
     
     def _no_outlier(self, sigma=5, iters=100):
 
-        idx = ((np.abs(self.signal) < 100.) & (self.signal > 0.))
+        #idx = ((np.abs(self.signal) < 100.) & (self.signal > 0.)) # for magnitude
+        idx = (self.signal > 0.) # for flux
+
         self.time   = self.time[idx]
         self.signal = self.signal[idx]
         self.error  = self.error[idx]

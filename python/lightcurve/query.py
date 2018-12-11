@@ -55,14 +55,14 @@ class query_DES:
         else:
             return None
 
-    def get_nearby_coadd_objects(self,ra,dec,radius):
+    def get_nearby_coadd_objects(self,ra,dec,radius,addition=""):
 
         dec_radian = dec*np.pi/180.
         ra_upper = (ra+radius/3600./np.cos(dec_radian))
         ra_lower = (ra-radius/3600./np.cos(dec_radian))
         dec_upper = dec+radius/3600.
         dec_lower = dec-radius/3600.
-        get_list = "select RA,DEC,WAVG_MAG_PSF_G,WAVG_MAG_PSF_R,WAVG_MAG_PSF_I,WAVG_MAG_PSF_Z,WAVG_MAG_PSF_Y from Y3A2_COADD_OBJECT_SUMMARY where WAVG_MAG_PSF_I between 15 and 22  and RA between :ra_lower and :ra_upper and DEC between :dec_lower and :dec_upper"
+        get_list = "select RA,DEC,WAVG_MAG_PSF_G,WAVG_MAG_PSF_R,WAVG_MAG_PSF_I,WAVG_MAG_PSF_Z,WAVG_MAG_PSF_Y from Y3A2_COADD_OBJECT_SUMMARY where WAVG_MAG_PSF_I between 15 and 28  and RA between :ra_lower and :ra_upper and DEC between :dec_lower and :dec_upper "+addition
         self.cur.execute(get_list,ra_lower=ra_lower,ra_upper=ra_upper,dec_lower=dec_lower,dec_upper=dec_upper)
         info_list = self.cur.fetchall()
         if len(info_list) > 0:

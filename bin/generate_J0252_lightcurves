@@ -3,20 +3,29 @@
 import timeit
 import numpy as np
 import pandas as pd
-#from lightcurve import main
-#from lightcurve import plot
-#from lightcurve import query
-import useful_funcs
+from astropy.io import fits
+from astropy.coordinates import SkyCoord
+from astropy import units as u
 import sys
 import os
+import subprocess
+#from lightcurve import main
+#from lightcurve import plot
+from period_analysis import main
+from period_analysis import plot
+from lightcurve import query
+import useful_funcs
 
 def funpack_one(input_dir,output_dir,catalog,band):
 
-    if not os.path.exists(output_dir+str(catalog["date"])+"_"+band+".fits "):
+    filepath = output_dir+str(catalog["date"])+"_"+band+".fits"
+    if not os.path.exists(filepath):
         os.system("software/bin/funpack -O "+\
-                  output_dir+str(catalog["date"])+"_"+band+".fits "+\
+                  filepath+" "+\
                   input_dir+catalog["Basename"]+".fits.fz")
     else: print("The image already existed !")
+    mjd_obs = fits.open(filepath)[0].header["MJD-OBS"]
+    return str(catalog["date"]), band, mjd_obs
 
 def run_swarp(input_dir,output_dir,catalog,band):
 
@@ -25,6 +34,9 @@ def run_swarp(input_dir,output_dir,catalog,band):
             os.system("software/bin/funpack -O "+\
                       input_dir+row["Basename"]+".fits "+\
                       input_dir+row["Basename"]+".fits.fz")
+    mjd_list = [ fits.open(input_dir+name+".fits")[0].header["MJD-OBS"] \
+                 for name in catalog["Basename"]]
+    mjd_obs = np.mean(mjd_list)
     
     outfile_name = output_dir+str(catalog["date"].unique()[0])+"_"+band+".fits"
     if not os.path.exists(outfile_name):
@@ -33,7 +45,149 @@ def run_swarp(input_dir,output_dir,catalog,band):
         os.system("swarp "+image_list+" -WRITE_XML N -IMAGEOUT_NAME "+\
                   outfile_name)
         os.system("rm coadd.weight.fits")
-    else: print("Combined image already existed !")
+    else: print("Combined image "+outfile_name+" already existed !")
+    return str(catalog["date"].unique()[0]), band, mjd_obs
+
+def run_sex(date,band,input_dir,cat_dir):
+
+    if not os.path.exists(cat_dir+date+"_"+band+".cat"):
+        path_sex = "/".join(subprocess.check_output(\
+                   ["which","sex"]).split("/")[:-2])+"/share/sextractor/"
+        path_psfex = "/".join(subprocess.check_output(\
+                     ["which","psfex"]).split("/")[:-2])+"/share/psfex/"
+        f = open("prepsfex.param","w")
+        f.write("VIGNET(35,35)\nX_IMAGE\nY_IMAGE\nFLUX_APER\nFLUXERR_APER\n"+\
+                "FLUX_RADIUS\nELONGATION\nFLAGS\nSNR_WIN")
+        f.close()
+        f = open("sex.param","w")
+        f.write("ALPHA_J2000\nDELTA_J2000\nFLUX_PSF\nFLUXERR_PSF\n"+\
+                "FLUX_AUTO\nFLUXERR_AUTO")
+        f.close()
+        os.system("sex "+input_dir+date+"_"+band+".fits[0] "+\
+                  "-c "+path_psfex+"prepsfex.sex "+\
+                  "-PARAMETERS_NAME prepsfex.param "+\
+                  "-FILTER_NAME "+path_psfex+"default.conv "+\
+                  "-WRITE_XML N -CATALOG_TYPE FITS_LDAC")
+        os.system("psfex prepsfex.cat -c "+path_psfex+"default.psfex "+\
+                  "-WRITE_XML N -CHECKPLOT_TYPE NONE -CHECKIMAGE_TYPE NONE "+\
+                  "-SAMPLE_MINSN 10 -SAMPLE_FWHMRANGE 2.0,16.0")
+        os.system("sex "+input_dir+date+"_"+band+".fits[0] "+\
+                  "-c "+path_sex+"default.sex "+\
+                  "-PARAMETERS_NAME sex.param -WRITE_XML N "+\
+                  "-FILTER_NAME "+path_sex+"default.conv "+\
+                  "-STARNNW_NAME "+path_sex+"default.nnw "+\
+                  "-DETECT_THRESH 2 -ANALYSIS_THRESH 2 "+\
+                  "-CATALOG_TYPE ASCII_HEAD -PSF_NAME prepsfex.psf "+\
+                  "-CATALOG_NAME "+cat_dir+date+"_"+band+".cat")
+        os.system("rm prepsfex.cat")
+        os.system("rm prepsfex.psf")
+        os.system("rm prepsfex.param")
+        os.system("rm sex.param")
+    else: print("Catalog "+cat_dir+date+"_"+band+".cat"+" already existed !")
+
+    return 0 
+
+def read_catalog_data(cat_dir,date,band):
+
+    data = np.genfromtxt(cat_dir+date+"_"+band+".cat",comments="#",\
+                        dtype=[("ra",float),("dec",float),("flux_psf",float),\
+                               ("flux_err_psf",float),("flux_auto",float),\
+                               ("flux_err_auto",float),("x_image",float),\
+                               ("y_image",float)])
+    data_clean = data[data["flux_psf"] > 0.]
+    return data_clean
+
+
+def get_zeropoint(data,data_coadd,band):
+
+    mag_psf = -2.5*np.log10(data["flux_psf"])
+    data_clean = data[(mag_psf< 99) & (mag_psf> -99)]
+    if len(data) == 0: return None,None
+    coor_single = SkyCoord(ra=data_clean["ra"]*u.degree,
+                           dec=data_clean["dec"]*u.degree)
+    coor_coadd = SkyCoord(ra=data_coadd["ra"]*u.degree,
+                         dec=data_coadd["dec"]*u.degree)
+    match_sources = coor_single.match_to_catalog_sky(coor_coadd)
+    match_indices = match_sources[0][match_sources[1]<1.0*u.arcsec]
+    matched_data1 = data_clean[match_sources[1]<1.0*u.arcsec]
+    matched_data2 = data_coadd[match_indices]
+    mag_psf = -2.5*np.log10(matched_data1["flux_psf"])
+    mag_diff = matched_data2["mag_psf_"+band]-mag_psf
+    mag_diff_clean = mag_diff[(mag_diff<40)&(mag_diff>20)]
+    #plot.plot_magnitude_comparison(matched_data2["mag_psf_"+band][(mag_diff<40)&(mag_diff>20)],mag_diff_clean,"plot/","test")
+    print "Number of reference stars: ",len(mag_diff_clean)
+    if len(mag_diff_clean)>=3:
+        zeropoint = np.median(mag_diff_clean)
+        zeropoint_rms = np.std(mag_diff_clean)/np.sqrt(len(mag_diff_clean))
+        return zeropoint,zeropoint_rms
+    else: return None,None
+
+
+def get_target_quasar(ra,dec,data):
+
+    coor_quasar = SkyCoord(ra=ra*u.degree,
+                           dec=dec*u.degree)
+    coor_objects = SkyCoord(ra=data["ra"]*u.degree,
+                            dec=data["dec"]*u.degree)
+    dist = coor_quasar.separation(coor_objects)
+    matched_quasar = data[dist<2.0*u.arcsec ]
+
+    return matched_quasar
+
+def calibrate_mag(quasar,zeropoint,zeropoint_rms):
+
+    quasar["flux_err_psf"] = np.sqrt((zeropoint_rms*quasar["flux_psf"])**2+\
+                             quasar["flux_err_psf"]**2)\
+                             *10**(-0.4*zeropoint+9)
+    quasar["flux_psf"] = quasar["flux_psf"]*10**(-0.4*zeropoint+9)
+    quasar["flux_err_auto"] = np.sqrt((zeropoint_rms*quasar["flux_auto"])\
+                              **2+quasar["flux_err_auto"]**2)\
+                              *10**(-0.4*zeropoint+9)
+    quasar["flux_auto"] = quasar["flux_auto"]*10**(-0.4*zeropoint+9)
+    return quasar
+
+def convert_flux_to_mag(total_quasars):
+
+    total_quasars["flux_err_psf"] = total_quasars["flux_err_psf"]*1.09/\
+                                    total_quasars["flux_psf"]
+    total_quasars["flux_psf"] = 22.5-2.5*np.log10(total_quasars["flux_psf"])
+    total_quasars["flux_err_auto"] = total_quasars["flux_err_auto"]*1.09/\
+                                    total_quasars["flux_auto"]
+    total_quasars["flux_auto"] = 22.5-2.5*np.log10(total_quasars["flux_auto"])
+    total_quasars.dtype.names = tuple([w.replace("flux","mag") for w \
+                                  in total_quasars.dtype.names])
+
+    return total_quasars
+
+
+def calculate_mag_LCO(ra,dec,info,cat_dir):
+
+    query_DES = query.query_DES()
+    data_coadd = query_DES.get_nearby_coadd_objects(ra,dec,10*60,\
+                 addition=" and SPREAD_MODEL_I < 0.005")
+    final_list = []
+    for row in info:
+        date = row["date"]
+        band = row["band"]
+        mjd_obs = row["mjd_obs"]
+        data = read_catalog_data(cat_dir,date,band)
+        zeropoint,zeropoint_rms = get_zeropoint(data,data_coadd,band)
+        print(date+"_"+band+".cat "+"Zeropoint:"+str(zeropoint)+\
+              ", RMS:"+str(zeropoint_rms))
+        matched_quasar = get_target_quasar(ra,dec,data)
+        if (zeropoint is None) or (zeropoint_rms is None):
+            print("No zeropoint !!")
+        elif len(matched_quasar) == 0:
+            print("Quasar not found !!")
+        else:
+            quasar_cal = calibrate_mag(matched_quasar,zeropoint,zeropoint_rms)
+            quasar_final = convert_flux_to_mag(quasar_cal)
+            final_list.append((mjd_obs,quasar_cal["mag_psf"],\
+                               quasar_cal["mag_err_psf"],band))
+    final_list = np.array(final_list,dtype=[("mjd_obs",float),\
+                          ("mag_psf",float),("mag_err_psf",float),\
+                          ("band","|S1")])
+    return final_list
 
 if __name__ == '__main__':
 
@@ -65,6 +219,7 @@ if __name__ == '__main__':
     dates = catalog["date"].unique()
 
     bands = {"g":"gp","r":"rp","i":"ip","z":"zs"}
+    info = []
     for date in dates:
         catalog_in_epoch = catalog[catalog["date"]==date]
         for band in bands.keys():
@@ -72,7 +227,65 @@ if __name__ == '__main__':
                               catalog_in_epoch["Filter"] == bands[band]]
             num_exp = len(catalog_in_band)
             if num_exp == 1:
-                funpack(raw_dir,image_dir,catalog_in_band,band)
+                date,band,mjd_obs = funpack(raw_dir,image_dir,\
+                                            catalog_in_band,band)
+                info.append([date,band,mjd_obs])
             if num_exp > 1:
-                run_swarp(raw_dir,image_dir,catalog_in_band,band)
+                date,band,mjd_obs = run_swarp(raw_dir,image_dir,\
+                                              catalog_in_band,band)
+                info.append((date,band,mjd_obs))
+    info = np.array(info,dtype=[("date","|S10"),("band","|S1"),\
+                                ("mjd_obs",float)])
+    # run sextractor
+    cat_dir = J0252_dir+LCO_dir+"catalogs/"
+    useful_funcs.create_dir(cat_dir)
+    #for image in image_list:
+    for row in info:
+        date = row["date"]
+        band = row["band"]
+        run_sex(date,band,image_dir,cat_dir)
+
+    # calibrate the magnitude
+    ra,dec = 43.0611,-0.470451
+    final_list = calculate_mag_LCO(ra,dec,info,cat_dir)
+
+    # light curves
+    lc_dir = J0252_dir+LCO_dir+"lightcurves/"
+    useful_funcs.create_dir(lc_dir)
+    plot = plot.plot(4,1,figsize=(8,8),sharex=True)
+    analysis = main.analysis()
+    for band in bands.keys():
+        final_list_in_band = final_list[final_list["band"] == band]
+        if not len(final_list_in_band) >1:
+            print(" 0 data points in "+band+" band !!")
+        else:
+            np.savetxt(lc_dir+band+".csv",final_list_in_band[["mjd_obs",\
+                       "mag_psf","mag_err_psf"]],fmt="%f,%f,%f",comments='',\
+                       header="mjd_obs,mag_psf,mag_err_psf")
+
+            # plot light curves
+
+            time = final_list_in_band["mjd_obs"]
+            signal = 10**((22.5-final_list_in_band["mag_psf"])/2.5)
+            error = final_list_in_band["mag_err_psf"]*signal/1.09
+            plot.plot_light_curve(time,signal,error,"LCO",band)
+
+        for survey in ["DES","SDSS_corr"]:
+            data = analysis.read_lightcurve(name,survey,band)
+            time = data["mjd_obs"]
+            signal = 10**((22.5-data["mag_psf"])/2.5)
+            error = data["mag_err_psf"]*signal/1.09
+            plot.plot_light_curve(time,signal,error,survey,band)
+
+    plot.savefig(lc_dir,"lightcurves.png",name)
+
+
+
+
+        
+
+
+
+    
+
 

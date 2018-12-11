@@ -119,7 +119,7 @@ class analysis:
         """ add flux_psf and flux_err_psf into data """
 
         data["flux_psf"] = 10**((22.5-data["mag_psf"])/2.5)
-        data["flux_err_psf"] = data["mag_err_psf"]*data["mag_psf"]/1.09
+        data["flux_err_psf"] = data["mag_err_psf"]*data["flux_psf"]/1.09
 
         return data
 
@@ -199,7 +199,6 @@ class analysis:
                                  data["flux_err_psf"], quasar["z"],\
                                  preprocess=True)
                     time, signal, error = lc2.get_lc()
-                    print lc2.time,lc2.signal
                     lightcurve.plot_light_curve(time,signal,error,survey,band)
                     lc.add_lc(time, signal, error,preprocess=False)
 
