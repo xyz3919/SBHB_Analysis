@@ -11,45 +11,75 @@ then
     mkdir $eups_dir
 fi
 
+bin_path=$(dirname $(which install_eups.sh))
+echo export PATH=$bin_path$'/:$PATH' >>setup.sourceme
+echo export PYTHONPATH="${bin_path/bin/python}"$'/:$PYTHONPATH\n'>>setup.sourceme
+
 cd $eups_dir
 
 curl -O http://desbuild.cosmology.illinois.edu/desdm_eupsinstall.py
 python desdm_eupsinstall.py
 
+source ./eups/desdm_eups_setup.sh
+
+eups distrib install numpy 1.10.4+4
+eups distrib install python 2.7.9+2
 eups distrib install despydb 2.0.4+0
-eups distrib install  despymisc 1.0.4+2
+eups distrib install despymisc 1.0.4+2
 eups distrib install astropy 1.1.2+6
-eups distrib install scipy 0.14.0+12
+eups distrib install scipy 0.14.0+10
 eups distrib install matplotlib 1.5.3+2
 eups distrib install pandas  0.15.2+5
 eups distrib install sextractor 2.24.4+1
 eups distrib install psfex 3.21.0+5
 eups distrib install swarp 2.40.1+0
 
-# install astroquery by pip
+cd ..
 
-python -m ensurepip --default-pip
+echo $'setup numpy\nsetup scipy\nsetup despydb\nsetup astropy'>>setup.sourceme
+echo $'setup despymisc\nsetup matplotlib\nsetup pandas'>>setup.sourceme
+echo $'setup sextractor\nsetup psfex\nsetup swarp\n'>>setup.sourceme
 
-pip_used=`which pip`
+source setup.sourceme
 
-$pip_used install astroquery
-
-# install astroML
-
-$pip_used install astroML
-$pip_used install astroML_addons
-$pip_used install emcee
-
-# install fpack
+## install some package not in EUPS
 
 software_dir="software"
-
 if [ ! -e $software_dir ]
 then
     mkdir $software_dir
 fi
-
 cd $software_dir
+
+pythonpackage_dir="python_package"
+if [ ! -e $pythonpackage_dir ]
+then
+    mkdir $pythonpackage_dir
+fi
+
+# use python 2.7.9+2 in order to use pip without install
+setup python 2.7.9+2
+#python -m ensurepip --default-pip
+curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+python get-pip.py 
+
+export PYTHONPATH=$PYTHONPATH:`pwd`/$pythonpackage_dir/lib/python2.7/site-packages/
+
+echo $'export PYTHONPATH=$PYTHONPATH:'`pwd`/$pythonpackage_dir/$'lib/python2.7/site-packages/' >> ../setup.sourceme
+echo $'export PATH=$PATH:'`pwd`/$pythonpackage_dir/$'bin/' >> ../setup.sourceme
+echo $'export PATH=$PATH:'`pwd`/$'bin/' >> ../setup.sourceme
+
+# install astroquery by pip
+pip install --prefix=`pwd`/$pythonpackage_dir astroquery
+
+# install astroML
+pip install --prefix=`pwd`/$pythonpackage_dir astroML
+pip install --prefix=`pwd`/$pythonpackage_dir astroML_addons
+
+# install emcee
+pip install --prefix=`pwd`/$pythonpackage_dir emcee
+
+# install fpack
 mkdir bin
 
 wget http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio3450.tar.gz
@@ -66,5 +96,4 @@ make fpack
 make funpack
 cp fpack ../bin/
 cp funpack ../bin/
-
 

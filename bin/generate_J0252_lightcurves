@@ -9,7 +9,7 @@ from astropy import units as u
 import sys
 import os
 import subprocess
-#from lightcurve import main
+from lightcurve import main as lc_main
 #from lightcurve import plot
 from period_analysis import main
 from period_analysis import plot
@@ -254,6 +254,16 @@ if __name__ == '__main__':
     useful_funcs.create_dir(lc_dir)
     plot = plot.plot(4,1,figsize=(8,8),sharex=True)
     analysis = main.analysis()
+
+    # get DES Y6 objects
+    lc_DES_Y6_dir = J0252_dir+"DES_Y6/"+"lightcurves/"
+    useful_funcs.create_dir(lc_DES_Y6_dir)
+    lc = lc_main.lc("DES/")
+    quasar = np.array([(ra,dec)],dtype=[("ra",float),("dec",float)])
+    Y6_quasars = lc.generate_firstcut_lightcurve(quasar[0],"Y6N")
+    Y6_quasars = lc.convert_flux_to_mag(Y6_quasars)
+    Y6_quasars.sort(order="mjd_obs")
+
     for band in bands.keys():
         final_list_in_band = final_list[final_list["band"] == band]
         if not len(final_list_in_band) >1:
@@ -270,12 +280,27 @@ if __name__ == '__main__':
             error = final_list_in_band["mag_err_psf"]*signal/1.09
             plot.plot_light_curve(time,signal,error,"LCO",band)
 
+
         for survey in ["DES","SDSS_corr"]:
             data = analysis.read_lightcurve(name,survey,band)
             time = data["mjd_obs"]
             signal = 10**((22.5-data["mag_psf"])/2.5)
             error = data["mag_err_psf"]*signal/1.09
             plot.plot_light_curve(time,signal,error,survey,band)
+
+        Y6_quasars_in_band = Y6_quasars[Y6_quasars["band"] == band]
+        if not len(Y6_quasars_in_band) >1:
+            print(" 0 data points in DES Y6 "+band+" band !!")
+        else:
+            np.savetxt(lc_DES_Y6_dir+band+".csv",final_list_in_band[["mjd_obs",\
+                       "mag_psf","mag_err_psf"]],fmt="%f,%f,%f",comments='',\
+                       header="mjd_obs,mag_psf,mag_err_psf")
+            # plot DES Y6 light curves
+            time = Y6_quasars_in_band["mjd_obs"]
+            signal = 10**((22.5-Y6_quasars_in_band["mag_psf"])/2.5)
+            error = Y6_quasars_in_band["mag_err_psf"]*signal/1.09
+            #plot.plot_light_curve(time,signal,error,"DES",band)
+
 
     plot.savefig(lc_dir,"lightcurves.png",name)
 

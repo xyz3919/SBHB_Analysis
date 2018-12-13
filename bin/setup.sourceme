@@ -11,4 +11,4 @@ setup sextractor
 setup psfex
 setup swarp
 
-PYTHONPATH=~/python/lib/python2.7/site-packages:$PYTHONPATH
+#PYTHONPATH=~/python/lib/python2.7/site-packages:$PYTHONPATH

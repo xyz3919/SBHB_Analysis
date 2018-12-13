@@ -131,7 +131,7 @@ class plot:
 
     def savefig(self,dir_output,name,title):
 
-        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+        self.f.tight_layout(rect=[0, 0.03, 1, 0.95])
         self.f.suptitle(title)
         self.f.savefig(dir_output+name)
         plt.close()
