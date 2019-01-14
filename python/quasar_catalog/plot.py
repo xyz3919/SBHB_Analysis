@@ -36,3 +36,6 @@ class plot:
         plt.savefig(self.plot_dir+"spread_model_i_"+name+".png")
         plt.close()
 
+
+
+

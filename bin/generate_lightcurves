@@ -26,7 +26,15 @@ def func(quasar):
     total_quasars = lc.convert_flux_to_mag(total_quasars)
     total_quasars.sort(order="mjd_obs")
 
-    save_line = save_line+name+","+",".join(map(str,quasar))
+    # get average magnitude for the quasars without coadd mag
+    if not ((quasar["mag_psf_i"] > 0) & (quasar["mag_psf_i"] < 40 )):
+        mag_i = np.mean(total_quasars[total_quasars["band"]=="i"]["mag_psf"])
+        quasar_save = list(quasar)
+        quasar_save[quasar.dtype.names.index("mag_psf_i")] = mag_i
+        save_line = save_line+name+","+",".join(map(str,quasar_save))
+    else:
+        save_line = save_line+name+","+",".join(map(str,quasar))
+
     for band in lc.band_list:
         quasars_in_band = total_quasars[total_quasars["band"]==band]
         if len(quasars_in_band) == 0 :
@@ -82,10 +90,10 @@ if __name__ == '__main__':
     lc_SDSS = main.lc("SDSS/")
     useful_funcs.create_dir(lc_SDSS.lc_dir+"SDSS_corr/")
     quasar_catalog = lc.load_quasar_catalog()
-    lc.write_header(quasar_catalog)
     pool = mp.Pool(mp.cpu_count()*3/4)
     save_lines = pool.map(func,quasar_catalog)
 
+    lc.write_header(quasar_catalog)
     f = open(lc.lc_dir+lc.lc_info_file,"a")
     f.write("\n".join(save_lines))
     f.close()

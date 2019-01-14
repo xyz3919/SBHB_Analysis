@@ -108,6 +108,7 @@ class plot:
         if bottom > np.min(signal)-0.5: bottom = np.min(signal)-0.5
         if top < np.max(signal)+0.5: top = np.max(signal)+0.5
         ax.set_ylim(bottom,top)
+        print survey,min(time),max(signal)
         if band == "z":
             ax.set_xlabel("MJD")
         #ax.set_ylabel("Mag") 
@@ -134,6 +135,6 @@ class plot:
         self.f.tight_layout(rect=[0, 0.03, 1, 0.95])
         self.f.suptitle(title)
         self.f.savefig(dir_output+name)
-        plt.close()
+        plt.close(self.f)
         
 

@@ -45,15 +45,18 @@ if __name__ == '__main__':
 
     print ("Saving the DES number of epochs plot at 'plot/DES_epochs.png'")
     print ("Saving the SDSS number of epochs plot at 'plot/SDSS_epochs.png'")
-    number_epochs_DES.savefig("plot/","DES_epochs.png",\
-                              "Number of epochs in DES")
-    number_epochs_SDSS.savefig("plot/","SDSS_epochs.png",\
-                               "Number of epochs in SDSS")
+    number_epochs_DES.savefig("plot/","DES_epochs.png","DES")
+    number_epochs_SDSS.savefig("plot/","SDSS_epochs.png","SDSS")
 
     np.savetxt(lc.lc_dir+"lc_clean.csv",clean_sample,fmt="%s,"*18+"%s",\
                header=",".join(clean_sample.dtype.names),comments="")
 
-    # cheack where the quasar from
+    redshift_mag = plot.plot(1,1,figsize=(8,6))
+    redshift_mag.plot_redshift_mag(clean_sample["z"],clean_sample["mag_i"])
+    redshift_mag.savefig("plot/","redshift_mag.png",\
+                         "",tight_layout=False)
+
+    # check where the quasar from
     in_DR7_DR14 = np.any([clean_sample["flag_0"]==" DR14Q",\
                           clean_sample["flag_1"]=="  DR7Q"],axis=0)
     number_DR7_DR14 = len(clean_sample[in_DR7_DR14])

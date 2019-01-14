@@ -12,7 +12,7 @@ import subprocess
 from lightcurve import main as lc_main
 #from lightcurve import plot
 from period_analysis import main
-from period_analysis import plot
+from period_analysis import plot as period_plot
 from lightcurve import query
 import useful_funcs
 
@@ -252,7 +252,6 @@ if __name__ == '__main__':
     # light curves
     lc_dir = J0252_dir+LCO_dir+"lightcurves/"
     useful_funcs.create_dir(lc_dir)
-    plot = plot.plot(4,1,figsize=(8,8),sharex=True)
     analysis = main.analysis()
 
     # get DES Y6 objects
@@ -263,8 +262,19 @@ if __name__ == '__main__':
     Y6_quasars = lc.generate_firstcut_lightcurve(quasar[0],"Y6N")
     Y6_quasars = lc.convert_flux_to_mag(Y6_quasars)
     Y6_quasars.sort(order="mjd_obs")
+    lightcurves = period_plot.plot(4,1,figsize=(8,8),sharex=True)
 
     for band in bands.keys():
+
+        for survey in ["DES","SDSS_corr"]:
+            data = analysis.read_lightcurve(name,survey,band)
+            time = np.array(data["mjd_obs"])
+            signal = 10**((22.5-np.array(data["mag_psf"]))/2.5)
+            error = np.array(data["mag_err_psf"])*signal/1.09
+            lightcurves.plot_light_curve(time,signal,error,survey,band)
+
+    for band in bands.keys():
+
         final_list_in_band = final_list[final_list["band"] == band]
         if not len(final_list_in_band) >1:
             print(" 0 data points in "+band+" band !!")
@@ -278,15 +288,8 @@ if __name__ == '__main__':
             time = final_list_in_band["mjd_obs"]
             signal = 10**((22.5-final_list_in_band["mag_psf"])/2.5)
             error = final_list_in_band["mag_err_psf"]*signal/1.09
-            plot.plot_light_curve(time,signal,error,"LCO",band)
+            lightcurves.plot_light_curve(time,signal,error,"LCO",band)
 
-
-        for survey in ["DES","SDSS_corr"]:
-            data = analysis.read_lightcurve(name,survey,band)
-            time = data["mjd_obs"]
-            signal = 10**((22.5-data["mag_psf"])/2.5)
-            error = data["mag_err_psf"]*signal/1.09
-            plot.plot_light_curve(time,signal,error,survey,band)
 
         Y6_quasars_in_band = Y6_quasars[Y6_quasars["band"] == band]
         if not len(Y6_quasars_in_band) >1:
@@ -299,10 +302,10 @@ if __name__ == '__main__':
             time = Y6_quasars_in_band["mjd_obs"]
             signal = 10**((22.5-Y6_quasars_in_band["mag_psf"])/2.5)
             error = Y6_quasars_in_band["mag_err_psf"]*signal/1.09
-            #plot.plot_light_curve(time,signal,error,"DES",band)
+            lightcurves.plot_light_curve(time,signal,error,"DES",band)
 
 
-    plot.savefig(lc_dir,"lightcurves.png",name)
+    lightcurves.savefig(lc_dir,"lightcurves.png",name)
 
 
 

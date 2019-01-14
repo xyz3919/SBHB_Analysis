@@ -22,12 +22,13 @@ python desdm_eupsinstall.py
 
 source ./eups/desdm_eups_setup.sh
 
+#eups distrib install python 2.7.9+2
+#eups distrib install setuptools 40.4.3+0
 eups distrib install numpy 1.10.4+4
-eups distrib install python 2.7.9+2
+eups distrib install scipy 0.14.0+10
 eups distrib install despydb 2.0.4+0
 eups distrib install despymisc 1.0.4+2
 eups distrib install astropy 1.1.2+6
-eups distrib install scipy 0.14.0+10
 eups distrib install matplotlib 1.5.3+2
 eups distrib install pandas  0.15.2+5
 eups distrib install sextractor 2.24.4+1
@@ -36,9 +37,9 @@ eups distrib install swarp 2.40.1+0
 
 cd ..
 
-echo $'setup numpy\nsetup scipy\nsetup despydb\nsetup astropy'>>setup.sourceme
-echo $'setup despymisc\nsetup matplotlib\nsetup pandas'>>setup.sourceme
-echo $'setup sextractor\nsetup psfex\nsetup swarp\n'>>setup.sourceme
+echo $'setup numpy\nsetup scipy\nsetup despydb'>>setup.sourceme
+echo $'setup setup astropy\ndespymisc\nsetup matplotlib'>>setup.sourceme
+echo $'setup pandas\nsetup sextractor\nsetup psfex\nsetup swarp\n'>>setup.sourceme
 
 source setup.sourceme
 
@@ -58,7 +59,7 @@ then
 fi
 
 # use python 2.7.9+2 in order to use pip without install
-setup python 2.7.9+2
+#setup python 2.7.9+2
 #python -m ensurepip --default-pip
 curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
 python get-pip.py 
