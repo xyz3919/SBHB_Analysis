@@ -38,7 +38,7 @@ eups distrib install swarp 2.40.1+0
 cd ..
 
 echo $'setup numpy\nsetup scipy\nsetup despydb'>>setup.sourceme
-echo $'setup setup astropy\ndespymisc\nsetup matplotlib'>>setup.sourceme
+echo $'setup astropy\nsetup despymisc\nsetup matplotlib'>>setup.sourceme
 echo $'setup pandas\nsetup sextractor\nsetup psfex\nsetup swarp\n'>>setup.sourceme
 
 source setup.sourceme

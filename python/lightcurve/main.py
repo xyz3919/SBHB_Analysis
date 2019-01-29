@@ -74,7 +74,7 @@ class lc:
         mag_psf = -2.5*np.log10(matched_data1["flux_psf"])
         mag_diff = matched_data2["mag_psf_"+band]-mag_psf
         mag_diff_clean = mag_diff[(mag_diff<40)&(mag_diff>20)]
-        plot.plot_magnitude_comparison(matched_data2["mag_psf_"+band][(mag_diff<40)&(mag_diff>20)],mag_diff_clean,"plot/","test")
+        #plot.plot_magnitude_comparison(matched_data2["mag_psf_"+band][(mag_diff<40)&(mag_diff>20)],mag_diff_clean,"plot/","test")
         print "Number of reference stars: ",len(mag_diff_clean)
         if len(mag_diff_clean)>=3:
             zeropoint = np.median(mag_diff_clean)

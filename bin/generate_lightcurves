@@ -88,6 +88,7 @@ if __name__ == '__main__':
     start = timeit.default_timer()
     lc = main.lc("DES/")
     lc_SDSS = main.lc("SDSS/")
+    
     useful_funcs.create_dir(lc_SDSS.lc_dir+"SDSS_corr/")
     quasar_catalog = lc.load_quasar_catalog()
     pool = mp.Pool(mp.cpu_count()*3/4)
@@ -101,4 +102,5 @@ if __name__ == '__main__':
     stop = timeit.default_timer()
     useful_funcs.print_and_write(lc.log,"Execution Time:"+\
                                  str((stop-start)/60.)+" mins")
+    
 
