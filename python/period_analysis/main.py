@@ -3,6 +3,10 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 from scipy.optimize import curve_fit
+import matplotlib
+matplotlib.use('agg')
+from javelin.zylc import get_data
+from javelin.lcmodel import Cont_Model
 from quasar_drw import quasar_drw as qso_drw
 from plot import plot
 import useful_funcs
@@ -33,6 +37,15 @@ class analysis:
             exist = exist and os.path.exists(file_path)
 
         return exist
+
+    def make_combined_lc_for_javelin(self, lc, name, band):
+
+        zipdata = zip(lc.time,lc.signal,lc.error)
+        filename = self.lc_dir+"combined/"+name+"/"+band+".dat"
+        np.savetxt(filename,zipdata,delimiter=" ",comments="")
+
+        return filename
+
 
     def read_quasar_catalog(self):
 
@@ -101,11 +114,13 @@ class analysis:
     def clean_parameters_list(self, parameters_list):
 
         num_parameters = len(parameters_list[0])
+        excluded = np.zeros(len(parameters_list[:,0]), dtype=bool)
         for i in range(0, num_parameters-1):
             array = parameters_list[:, i]
             upper = np.percentile(array, 90)
             lower = np.percentile(array, 10)
-            parameters_list = parameters_list[(array<upper) & (array>lower)]
+            excluded = (excluded) | ( ~((array<upper) & (array>lower) ) ) 
+        parameters_list = parameters_list[~excluded]
         return parameters_list
 
     def save_period_amp(self, _freq, psd, error, filename):
@@ -135,20 +150,27 @@ class analysis:
 
         psd_mock_all = []
         if self.test is True: 
-            nwalkers,burnin,Nsteps,draw_times = 50,15,50,100
+            nwalkers,burnin,Nsteps,draw_times = 100,20,100,10
         else:
             nwalkers = 500
             burnin = 150
             Nsteps = 500
             draw_times = 5000
-        parameters_list =  lc.fit_drw_emcee(nwalkers=nwalkers, burnin=burnin,\
+
+        samples =  lc.fit_drw_emcee(nwalkers=nwalkers, burnin=burnin,\
                            Nstep=Nsteps,random_state=self.random_state)
+        walkers = plot(2,1,figsize=(10,7), sharex=True)
+        walkers.plot_walkers(np.exp(samples))
+        walkers.savefig(self.output_dir+name,"/walker_"+band+".png",band+" band")
+
+        parameters_list = samples[:, burnin:, :].reshape((-1, 2))
         parameters_list_good = self.clean_parameters_list(parameters_list)
+
         for i in range(draw_times):
-            tau,c,b = np.exp(parameters_list_good[self.random_state.randint(\
-                      len(parameters_list_good))])
-            mock_time,mock_signal = lc.generate_mock_lightcurve(tau,b,c,lc.time,\
-                                    z,random_state=self.random_state)
+            tau,c = np.exp(parameters_list_good[self.random_state.randint(\
+                    len(parameters_list_good))])
+            mock_time,mock_signal = lc.generate_mock_lightcurve(tau,c,lc.time,\
+                                    lc.signal,z,random_state=self.random_state)
             #lightcurve.plot_mock_curve(mock_time,mock_signal_correct,band)
             period_mock, psd_mock = lc.periodogram(mock_time,mock_signal)
             psd_mock_all.append(psd_mock)
@@ -165,6 +187,17 @@ class analysis:
                                    self.output_dir+name+"/confidence_"+\
                                    band+".csv")
         periodogram.plot_confidence_level(period_mock, psd_mock_all, band)
+
+    def tailored_simulation_javelin(self,lc,band,z,name,periodogram,lightcurve):
+
+        useful_funcs.create_dir(self.lc_dir+"combined")
+        useful_funcs.create_dir(self.lc_dir+"combined/"+name)
+
+        filename = self.make_combined_lc_for_javelin(lc,name,band)
+        javdata = get_data(filename,names=["Continuum"])
+        cont = Cont_Model(javdata)
+        cont.do_mcmc(nwalkers=100, nburn=50, nchain=100,fchain="test.dat")
+
 
     def analyze_lightcurve(self,quasar):
 

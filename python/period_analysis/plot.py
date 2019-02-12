@@ -1,5 +1,5 @@
 import matplotlib
-matplotlib.use('Agg')
+matplotlib.use('agg')
 from matplotlib import pyplot as plt
 import numpy as np
 
@@ -24,7 +24,8 @@ class plot:
         self.color_list = {"g":"g","r":"orange",\
                            "i":"brown","z":"purple"}
         self.fmt_list = {"DES":{"fmt":"o","markersize":5},\
-                         "SDSS_corr":{"fmt":"s","markersize":5}\
+                         "SDSS_corr":{"fmt":"s","markersize":5},\
+                         "PS":{"fmt":"^","markersize":5}
                         }
 
     def plot(self,x,y,band,log=False):
@@ -123,6 +124,17 @@ class plot:
         ax.plot(time,signal,label=band,c=self.color_list[band],linestyle="--",\
                 linewidth=1)
 
+    def plot_walkers(self,samples):
+
+        labels = ["tau", "c", "b"]
+        for i in range(2):
+            ax = self.axes[i]
+            ax.plot(samples[:, :, i].T, "k", alpha=0.3)
+            #ax.set_xlim(0, len(samples))
+            ax.set_ylabel(labels[i])
+            #ax.yaxis.set_label_coords(-0.1, 0.5)
+        self.axes[-1].set_xlabel("step number")
+
     def plot_mock_curve(self,time,signal,band):
 
         ax_list = {"g":self.axes[0],"r":self.axes[1],\
@@ -136,5 +148,7 @@ class plot:
         self.f.suptitle(title)
         self.f.savefig(dir_output+name)
         plt.close(self.f)
+
+
         
 

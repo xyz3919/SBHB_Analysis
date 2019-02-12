@@ -6,6 +6,7 @@ import pandas as pd
 from astropy.io import fits
 from astropy.coordinates import SkyCoord
 from astropy import units as u
+from astropy.io import ascii
 import sys
 import os
 import subprocess
@@ -14,6 +15,7 @@ from lightcurve import main as lc_main
 from period_analysis import main
 from period_analysis import plot as period_plot
 from lightcurve import query
+from lightcurve import query_PS
 import useful_funcs
 
 def funpack_one(input_dir,output_dir,catalog,band):
@@ -304,16 +306,21 @@ if __name__ == '__main__':
             error = Y6_quasars_in_band["mag_err_psf"]*signal/1.09
             lightcurves.plot_light_curve(time,signal,error,"DES",band)
 
+    # PanSTARRS DR2
 
-    lightcurves.savefig(lc_dir,"lightcurves.png",name)
+    dcolumns = ("""objID,detectID,filterID,obsTime,ra,dec,psfFlux,psfFluxErr,psfMajorFWHM,psfMinorFWHM,
+                psfQfPerfect,apFlux,apFluxErr,infoFlag,infoFlag2,infoFlag3""").split(',')
+    dresults = query_PS.ps1cone(ra,dec,2./3600.,table='detection',release='dr2',columns=dcolumns)
+    dtab = query_PS.addfilter(ascii.read(dresults))
+    dtab.sort('obsTime')
 
+    for band in bands.keys():
+        dtab_band = dtab[dtab['filter']==band]
+        time = dtab_band['obsTime']
+        mag = -2.5*np.log10(dtab_band['psfFlux']) + 8.90
+        mag_error = dtab_band['psfFluxErr']/dtab_band['psfFlux']*1.09
+        signal = 10**((22.5-mag)/2.5)
+        error = mag_error*signal/1.09
+        lightcurves.plot_light_curve(time,signal,error,"PS",band)
 
-
-
-        
-
-
-
-    
-
-
+    lightcurves.savefig(followup_dir,"lightcurves.png",name)

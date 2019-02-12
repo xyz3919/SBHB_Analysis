@@ -9,7 +9,8 @@ from scipy.optimize import curve_fit
 import emcee
 import scipy.optimize as op
 from astroML.time_series import generate_damped_RW
-
+from scipy.optimize import minimize, rosen, rosen_der
+from plot import plot
 
 class quasar_drw:
 
@@ -126,7 +127,8 @@ class quasar_drw:
     ### ********************************* ###
     
     def fit_drw_emcee(self, nwalkers=500, burnin=150, Nstep=500,random_state=np.random.RandomState(0)):
-        ndim    = 3
+        ndim = 2
+        #ndim    = 3
         pos     = []
         
         z           = self.redshift
@@ -136,31 +138,35 @@ class quasar_drw:
         
         # use most likely val as a initial guess
         nll = lambda *args: -lnlike(*args)
-        result = op.minimize(nll, [np.log(300.), np.log(0.0001), np.log(np.mean(signal)/300.)], args=(self.time, self.signal, self.error, self.redshift))
+        result = op.minimize(nll, [np.log(300.), np.log(0.001)], args=(self.time, self.signal, self.error, self.redshift),method='BFGS',options={"maxiter":500})
         
         tau_center = np.exp(result["x"][0])
         c_center   = np.exp(result["x"][1])
-        b_center   = np.exp(result["x"][2])
+        #b_center   = np.exp(result["x"][2])
         
         print("Initial guess of (tau, c, b) = (" + format(np.exp(result["x"][0]), ".2f") + ", " \
-                                                 + format(np.exp(result["x"][1]), ".2e") + ", " \
-                                                 + format(np.exp(result["x"][2]), ".2f") + " )" )
+                                                 + format(np.exp(result["x"][1]), ".2e") + ") " \
+                                                 )
+         #                                        + format(np.exp(result["x"][2]), ".2f") + " )" )
         
         ## initiate a gaussian distribution aroun dthe mean value
         ## modify this part if needed
+#        tau_center = 300
 #        c_center = 0.02
         tau_sample = random_state.lognormal(mean=np.log(tau_center), sigma=1.0, size=nwalkers)
 #        tau_sample = np.random.lognormal(mean=np.log(tau_center), sigma=0.1, size=nwalkers)
-        c_sample   = random_state.lognormal(mean=np.log(c_center),   sigma=1.5, size=nwalkers)
+        c_sample   = random_state.lognormal(mean=np.log(c_center),   sigma=1.0, size=nwalkers)
 #        c_sample   = np.random.lognormal(mean=np.log(c_center),   sigma=0.1, size=nwalkers)
-        b_sample   = random_state.lognormal(mean=np.log(b_center),   sigma=1.0, size=nwalkers)
+#        b_sample   = random_state.lognormal(mean=np.log(b_center),   sigma=2.0, size=nwalkers)
 #        b_sample   = np.random.lognormal(mean=np.log(b_center),   sigma=0.1, size=nwalkers)
 
         
-        tau_sample, c_sample, b_sample = np.log(tau_sample), np.log(c_sample), np.log(b_sample)
+#        tau_sample, c_sample, b_sample = np.log(tau_sample), np.log(c_sample), np.log(b_sample)
+        tau_sample,c_sample = np.log(tau_sample), np.log(c_sample)
         
         for i in range(nwalkers):
-            parameter = np.array([tau_sample[i], c_sample[i], b_sample[i]])
+#            parameter = np.array([tau_sample[i], c_sample[i], b_sample[i]])
+            parameter = np.array([tau_sample[i], c_sample[i]])
             pos.append(parameter)
         sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=(time, signal, error, z), a=4.0)
         
@@ -171,18 +177,19 @@ class quasar_drw:
     
         # remove burn-in
         burnin = burnin
-        samples = sampler.chain[:, burnin:, :].reshape((-1, ndim))
+        #samples = sampler.chain[:, burnin:, :].reshape((-1, ndim))
+
         ## depending on the preference, return whatever you prefer
-        return samples
+        return sampler.chain
 
 #        return [[tau_center,c_center,b_center]]
 
-    def generate_mock_lightcurve(self,tau,b,c,time,z,random_state=np.random.RandomState(0)):
+    def generate_mock_lightcurve(self,tau,c,time,signal,z,random_state=np.random.RandomState(0)):
 
   
         time_res = time/(1+z)
         time_res_cont = np.linspace(min(time_res),max(time_res),int(max(time_res)-min(time_res)))
-        xmean = b*tau
+        xmean = np.mean(signal)
         SFinf = np.sqrt(c*tau/2.)
         lightcurve_DRW_res_cont = generate_damped_RW(time_res_cont,tau,z,xmean=xmean,SFinf=SFinf,random_state=random_state)
         lightcurve_DRW_res = np.interp(time_res, time_res_cont, lightcurve_DRW_res_cont)
@@ -365,11 +372,14 @@ def likelihood_P(time, signal, error, tau_fit, c_fit, b_fit):
 
 
 # set up for likelihood function
-def lnlike(theta, time, signal, error, z):
-    lntau, lnc, lnb = theta
+#def lnlike(theta, time, signal, error, z):
+def lnlike(theta, time,signal,error,z):
+    lntau, lnc = theta
+    #lntau, lnc, lnb = theta
+    b_fit = np.mean(signal)/np.exp(lntau)
     tau_fit = np.exp(lntau) * (1.0+z)
     c_fit   = np.exp(lnc) * np.sqrt(1.0+z)
-    b_fit   = np.exp(lnb) / (1.0+z)
+    #b_fit   = np.exp(lnb) / (1.0+z)
     P_array = likelihood_P(time, signal, error, tau_fit, c_fit, b_fit)
     Prob    = np.prod(P_array)
         
@@ -380,12 +390,15 @@ def lnlike(theta, time, signal, error, z):
 
 
 # set up for prior 
-def lnprior(theta, z, time):    
+#def lnprior(theta, z, time):    
+def lnprior(theta, z, time):
     # prior is determined in the rest frame, no need to multiply (1+z)
-    lntau, lnc, lnb = theta
-    tau_fit, c_fit, b_fit = np.exp(lntau), np.exp(lnc), np.exp(lnb)
+#    lntau, lnc, lnb = theta
+#    tau_fit, c_fit, b_fit = np.exp(lntau), np.exp(lnc), np.exp(lnb)
+    lntau, lnc = theta
+    tau_fit,c_fit = np.exp(lntau),np.exp(lnc)
     
-    if 1.0 < tau_fit*(1.0+z) < (np.max(time)-np.min(time)) and c_fit > 0.0:
+    if 1.0 < tau_fit*(1.0+z) < (np.max(time)-np.min(time)) and c_fit > 0.0 :
         return 0.0
     else:
         return -np.inf
