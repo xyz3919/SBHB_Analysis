@@ -295,7 +295,7 @@ class analysis:
         for index, row in cand.iterrows():
             yes = 0
             for band in self.band_list:
-                if row["peak_"+band]<1:
+                if row["peak_"+band]<0.3:
                     yes= yes+1
             cand.at[index,"yes"] = yes
         strong_cand = cand[cand["yes"]>1]
@@ -331,7 +331,7 @@ class analysis:
         f.write(header)
         for i in [4,3,2]:
             quasars_times = quasars[quasars["yes"]==i]
-            f.write(section % (str(i)+"bands, $>$99\%"))
+            f.write(section % (str(i)+"bands, $>$99.7\%"))
             for index, row in quasars_times.iterrows():
                 name = row["name"]
                 useful_funcs.create_dir(self.pdf_dir+name)
