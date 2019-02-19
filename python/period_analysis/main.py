@@ -244,6 +244,7 @@ class analysis:
                     error_list = self.error_boostraping(lc,periodogram,band)
 
                     period_max = self.check_period_max_amp(period, psd)
+                    periodogram.plot_peak_period(period_max)
                     if period_max is  None:
                         print ("Can not find the peak value !!")
                     else:

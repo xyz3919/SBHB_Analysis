@@ -85,6 +85,10 @@ class plot:
         ax.plot(_freq/365,lower,label=band,c=self.color_list[band],\
                 linewidth=0.5)
 
+    def plot_peak_period(self,period):
+
+        ax.axvline(x=period, color="r")
+
 
     def plot_confidence_level(self,_freq, psd_total,band):
         ax_list = {"g":self.axes[0,0],"r":self.axes[0,1],\
@@ -130,10 +134,10 @@ class plot:
         for i in range(2):
             ax = self.axes[i]
             ax.plot(samples[:, :, i].T, "k", alpha=0.3)
-            #ax.set_xlim(0, len(samples))
             ax.set_ylabel(labels[i])
             #ax.yaxis.set_label_coords(-0.1, 0.5)
         self.axes[-1].set_xlabel("step number")
+        
 
     def plot_mock_curve(self,time,signal,band):
 
