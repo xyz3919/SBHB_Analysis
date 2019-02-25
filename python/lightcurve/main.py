@@ -180,6 +180,7 @@ class lc:
 
         return total_quasars
 
+
     def generate_SDSS_lightcurve(self,quasar):
 
         dtype_SDSS = [("mjd_obs",float),("mag_psf",float),\
@@ -304,7 +305,40 @@ class spectra:
 
         return mag_diff
 
+class lc_single:
 
+
+    def __init__(self):
+
+        self.query = query.query_DES()
+        self.band_list = ["g","r","i","z"]
+
+
+    def generate_DES_lightcurves(self,ra,dec,model):
+
+        matched_quasars = np.array([],dtype=self.query.dtype_single_model)
+        objects = self.query.get_nearby_single_epoch_objects_model(\
+                  ra,dec,10,model)
+        if objects is None: return matched_quasars
+        coor_quasar = SkyCoord(ra=ra*u.degree,\
+                               dec=dec*u.degree)
+        coor_objects = SkyCoord(ra=objects["ra"]*u.degree,\
+                                dec=objects["dec"]*u.degree)
+        dist = coor_quasar.separation(coor_objects)
+        matched_quasars = objects[dist<1.0*u.arcsec ]
+        clean_objects = matched_quasars[(matched_quasars["flux"]>0) &\
+                                   (matched_quasars["flux"]<10**10) &\
+                                   (matched_quasars["mjd_obs"]>20000)&\
+                                   (matched_quasars["mjd_obs"]<90000)]
+        return clean_objects
+
+    def convert_flux_to_mag_model(self,quasars):
+
+        quasars["flux_err"] = quasars["flux_err"]*1.09/quasars["flux"]
+        quasars["flux"] = 22.5-2.5*np.log10(quasars["flux"])
+        quasars.dtype.names = tuple([w.replace("flux","mag") for w \
+                                     in quasars.dtype.names])
+        return quasars
 
 
 

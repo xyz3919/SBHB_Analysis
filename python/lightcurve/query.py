@@ -23,6 +23,8 @@ class query_DES:
         self.dtype_coadd = [("ra",float),("dec",float),("mag_psf_g",float),\
                             ("mag_psf_r",float),("mag_psf_i",float),\
                             ("mag_psf_z",float),("mag_psf_Y",float)]
+        self.dtype_single_model = [("ra",float),("dec",float),("mjd_obs",float),\
+                                   ("flux",float),("flux_err",float),("band","|S1")]
         try:
             desdmfile = os.environ["des_services"]
         except KeyError:
@@ -51,6 +53,30 @@ class query_DES:
         info_list = info_list1+info_list2
         if len(info_list) > 0:
             objects = np.array(info_list,dtype=self.dtype_single)
+            return objects
+        else:
+            return None
+
+    def get_nearby_single_epoch_objects_model(self,ra,dec,radius,model):
+
+        ''' get the flux with different aperture model '''
+
+        dec_radian = dec*np.pi/180.
+        ra_upper = (ra+radius/3600./np.cos(dec_radian))
+        ra_lower = (ra-radius/3600./np.cos(dec_radian))
+        dec_upper = dec+radius/3600.
+        dec_lower = dec-radius/3600.
+        # get Y1-Y5 objects (with y4a1_v1.5 zeropoint calibration)
+        get_list = "with SNVAR_TEMP_1 as (select CATALOGNAME, MAG_ZERO, SIGMA_MAG_ZERO, MAG_ONE, SIGMA_MAG_ONE, MJD_OBS from  Y6A1_EXPOSURE join Y6A1_ZEROPOINT on Y6A1_EXPOSURE.expnum = Y6A1_ZEROPOINT.expnum where  Y6A1_ZEROPOINT.flag < 16 and Y6A1_ZEROPOINT.source = 'FGCM' and Y6A1_ZEROPOINT.version =:version and MJD_OBS>56400 and EXPTIME > 30 order by CATALOGNAME ) select RA, DEC, MJD_OBS, Y6A1_FINALCUT_OBJECT.FLUX_%s*POWER(10,-0.4*MAG_ZERO+9) as FLUX, SQRT(POWER(1.09*SIGMA_MAG_ZERO*Y6A1_FINALCUT_OBJECT.FLUX_%s, 2) + POWER(Y6A1_FINALCUT_OBJECT.FLUXERR_%s, 2))*POWER(10,-0.4*MAG_ZERO+9) as FLUXERR, BAND from  Y6A1_FINALCUT_OBJECT, SNVAR_TEMP_1 where CATALOGNAME = FILENAME and Flags = 0 and imaflags_iso = 0 and RA between :ra_lower and :ra_upper and DEC between :dec_lower and :dec_upper  order by RA, DEC" % (model,model,model)
+        self.cur.execute(get_list,version='y5a1_v1.1',ra_lower=ra_lower,ra_upper=ra_upper,dec_lower=dec_lower,dec_upper=dec_upper)
+        info_list1 = self.cur.fetchall()
+        # get SV objects (with v2.0 zeropoint calibration)
+        get_list = "with SNVAR_TEMP_1 as (select CATALOGNAME, MAG_ZERO, SIGMA_MAG_ZERO, MAG_ONE, SIGMA_MAG_ONE, MJD_OBS from  Y4A1_EXPOSURE join Y4A1_ZEROPOINT on Y4A1_EXPOSURE.expnum = Y4A1_ZEROPOINT.expnum where  Y4A1_ZEROPOINT.flag < 16 and Y4A1_ZEROPOINT.source = 'FGCM' and Y4A1_ZEROPOINT.version = :version and MJD_OBS<56400 and EXPTIME > 30 order by CATALOGNAME ) select RA, DEC, MJD_OBS, Y4A1_FINALCUT_OBJECT.FLUX_%s*POWER(10,-0.4*MAG_ZERO+9) as FLUX, SQRT(POWER(1.09*SIGMA_MAG_ZERO*Y4A1_FINALCUT_OBJECT.FLUX_%s, 2) + POWER(Y4A1_FINALCUT_OBJECT.FLUXERR_%s, 2))*POWER(10,-0.4*MAG_ZERO+9) as FLUXERR, BAND from  Y4A1_FINALCUT_OBJECT, SNVAR_TEMP_1 where CATALOGNAME = FILENAME and Flags = 0 and imaflags_iso = 0 and RA between :ra_lower and :ra_upper and DEC between :dec_lower and :dec_upper  order by RA, DEC" % (model,model,model)
+        self.cur.execute(get_list,version="v2.0",ra_lower=ra_lower,ra_upper=ra_upper,dec_lower=dec_lower,dec_upper=dec_upper)
+        info_list2 = self.cur.fetchall()
+        info_list = info_list1+info_list2
+        if len(info_list) > 0:
+            objects = np.array(info_list,dtype=self.dtype_single_model)
             return objects
         else:
             return None

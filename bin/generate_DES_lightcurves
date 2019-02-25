@@ -1,0 +1,56 @@
+#!/usr/bin/env python
+import numpy as np
+import argparse
+import useful_funcs
+from lightcurve import main
+from period_analysis import plot
+
+# parse the argument
+parser = argparse.ArgumentParser(description='Generate DES light curves.')
+
+parser.add_argument('ra',metavar='ra',nargs=1,help='Right Ascension')
+parser.add_argument('dec',metavar='dec',nargs=1,help='Declination')
+
+parser.add_argument('--model', metavar='aperture',\
+                    action='store',default="PSF",
+                    help='The model used to calculate the flux (default: PSF)')
+parser.add_argument('--name', action='store', default="output",\
+                    help='The name of output directory (default: output)')
+args = parser.parse_args()
+ra = float(args.ra[0])
+dec = float(args.dec[0])
+model = args.model
+name = args.name
+
+print model,name
+# generating the light curves
+
+lc = main.lc_single()
+lc.save_dir = name+"/"+model
+useful_funcs.create_dir(name)
+useful_funcs.create_dir(lc.save_dir)
+
+lightcurve = plot.plot(4,1,figsize=(8,8),sharex=True)
+quasars =  lc.generate_DES_lightcurves(ra,dec,model.upper())
+quasars = lc.convert_flux_to_mag_model(quasars)
+quasars.sort(order="mjd_obs")
+
+for band in lc.band_list:
+    quasars_in_band = quasars[quasars["band"] == band]
+    if len(quasars_in_band) == 0:
+        print "No data found in "+band+" !"
+    else:
+        np.savetxt(lc.save_dir+"/"+band+".csv",\
+                   quasars_in_band[["mjd_obs","mag","mag_err"]],\
+                   fmt="%f,%f,%f",comments='',\
+                   header="mjd_obs,mag_%s,mag_err_%s" % ((model.lower(),)*2))
+        lightcurve.plot_light_curve(quasars_in_band["mjd_obs"],\
+                                    quasars_in_band["mag"],\
+                                    quasars_in_band["mag_err"],"DES",band)
+lightcurve.savefig(lc.save_dir,"/lightcurve.png",\
+                   name+"("+model.upper()+")")
+
+
+
+
+
