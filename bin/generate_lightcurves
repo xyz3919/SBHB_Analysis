@@ -19,10 +19,17 @@ def func(quasar):
     useful_funcs.print_and_write(lc.log,"- "+name+"\n")
     useful_funcs.create_dir(lc.save_dir+name)
     # make SV-Y4 light curves
+    '''
     SV_Y4_quasars = lc.generate_finalcut_lightcurve(quasar)
+    '''
+    SV_Y5_quasars = lc.generate_finalcut_lightcurve(quasar)
     # mkae Y5 light curves
+    '''
     Y5_quasars = lc.generate_firstcut_lightcurve(quasar,"Y5N")
     total_quasars = np.append(SV_Y4_quasars,Y5_quasars)
+    '''
+    total_quasars = SV_Y5_quasars
+
     total_quasars = lc.convert_flux_to_mag(total_quasars)
     total_quasars.sort(order="mjd_obs")
 

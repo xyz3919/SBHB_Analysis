@@ -313,6 +313,7 @@ if __name__ == '__main__':
     dresults = query_PS.ps1cone(ra,dec,2./3600.,table='detection',release='dr2',columns=dcolumns)
     dtab = query_PS.addfilter(ascii.read(dresults))
     dtab.sort('obsTime')
+    print dtab
 
     for band in bands.keys():
         dtab_band = dtab[dtab['filter']==band]

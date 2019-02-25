@@ -13,7 +13,7 @@ export PYTHONPATH=$PYTHONPATH:`pwd`/python
 
 ### Install eups 
 
-In order to connect to DES database, we need to install eups([manual like](https://opensource.ncsa.illinois.edu/confluence/display/DESDM/EUPS+User%27s+Guide)), which is a DESDM's new package management system.
+In order to connect to DES database, we need to install eups([manual link](https://opensource.ncsa.illinois.edu/confluence/display/DESDM/EUPS+User%27s+Guide)), which is a DESDM's new package management system.
 You might need a password for svn.
 ```
 install_eups.sh

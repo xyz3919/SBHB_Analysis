@@ -80,6 +80,12 @@ pip install --prefix=`pwd`/$pythonpackage_dir astroML_addons
 # install emcee
 pip install --prefix=`pwd`/$pythonpackage_dir emcee
 
+# install gatspy
+pip install --prefix=`pwd`/$pythonpackage_dir gatspy
+
+# intall scikit-learn
+pip install --prefix=`pwd`/$pythonpackage_dir -U scikit-learn
+
 # install javelin
 mkdir javelin
 wget https://bitbucket.org/nye17/javelin/downloads/javelin-0.33.tar.gz
@@ -89,6 +95,7 @@ python setup.py config_fc --fcompiler=gnu95 install --prefix=`pwd`/../javelin
 cd ..
 rm -rf javelin-0.33*
 echo $'export PYTHONPATH=$PYTHONPATH:'`pwd`/javelin/lib/python2.7/site-packages/ >> ../setup.sourceme
+
 
 # install fpack
 mkdir bin
