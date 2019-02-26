@@ -46,7 +46,8 @@ for band in lc.band_list:
                    header="mjd_obs,mag_%s,mag_err_%s" % ((model.lower(),)*2))
         lightcurve.plot_light_curve(quasars_in_band["mjd_obs"],\
                                     quasars_in_band["mag"],\
-                                    quasars_in_band["mag_err"],"DES",band)
+                                    quasars_in_band["mag_err"],"DES",band,\
+                                    yaxis="mag")
 lightcurve.savefig(lc.save_dir,"/lightcurve.png",\
                    name+"("+model.upper()+")")
 

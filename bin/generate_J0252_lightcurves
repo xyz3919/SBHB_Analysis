@@ -259,6 +259,7 @@ if __name__ == '__main__':
     # get DES Y6 objects
     lc_DES_Y6_dir = J0252_dir+"DES_Y6/"+"lightcurves/"
     useful_funcs.create_dir(lc_DES_Y6_dir)
+
     lc = lc_main.lc("DES/")
     quasar = np.array([(ra,dec)],dtype=[("ra",float),("dec",float)])
     Y6_quasars = lc.generate_firstcut_lightcurve(quasar[0],"Y6N")
@@ -308,13 +309,21 @@ if __name__ == '__main__':
 
     # PanSTARRS DR2
 
+    lc_PS_dir = J0252_dir+"PS/"+"lightcurves/"
+    useful_funcs.create_dir(lc_PS_dir)
+
     dcolumns = ("""objID,detectID,filterID,obsTime,ra,dec,psfFlux,psfFluxErr,psfMajorFWHM,psfMinorFWHM,
                 psfQfPerfect,apFlux,apFluxErr,infoFlag,infoFlag2,infoFlag3""").split(',')
     dresults = query_PS.ps1cone(ra,dec,2./3600.,table='detection',release='dr2',columns=dcolumns)
     dtab = query_PS.addfilter(ascii.read(dresults))
     dtab.sort('obsTime')
-    print dtab
 
+    # remove the data with < 3 sigma & close to the edges(by eye)
+    time_bad = [55860.537412,55860.550105,55871.554822,55853.552839,55853.566257,55871.526135,56918.486475,56918.497680,56918.508960,56156.625465]
+    for time in time_bad:
+        dtab = dtab[abs(dtab['obsTime']-time) > 0.01]
+
+    # save light curves and plots
     for band in bands.keys():
         dtab_band = dtab[dtab['filter']==band]
         time = dtab_band['obsTime']
@@ -323,5 +332,12 @@ if __name__ == '__main__':
         signal = 10**((22.5-mag)/2.5)
         error = mag_error*signal/1.09
         lightcurves.plot_light_curve(time,signal,error,"PS",band)
+        if not len(dtab_band) > 1:
+            print ("0 data points in Panstarrs "+band+" band !!")
+        else:
+            np.savetxt(lc_PS_dir+band+".csv",np.array([time,mag,mag_error]).T,\
+                       fmt="%f,%f,%f",comments='',\
+                       header="mjd_obs,mag_psf,mag_err_psf")
+
 
     lightcurves.savefig(followup_dir,"lightcurves.png",name)

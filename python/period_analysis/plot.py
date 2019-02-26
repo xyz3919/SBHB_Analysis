@@ -102,7 +102,7 @@ class plot:
            bounday_psd_at_each__freq = [np.percentile(psd,percentile) for psd in psd_at_each__freq]
            ax.plot(_freq/365,bounday_psd_at_each__freq,"--",c="black",linewidth=0.5)
 
-    def plot_light_curve(self,time,signal,error,survey,band):
+    def plot_light_curve(self,time,signal,error,survey,band,yaxis="flux"):
 
         if survey in self.fmt_list.keys() : fmt = self.fmt_list[survey]
         else : fmt = {"fmt":"x","markersize":5}
@@ -116,8 +116,10 @@ class plot:
         print survey,min(time),max(signal)
         if band == "z":
             ax.set_xlabel("MJD")
-        #ax.set_ylabel("Mag") 
-        ax.set_ylabel("Flux(nanomaggy)")
+        if yaxis== "mag":
+            ax.set_ylabel("Magnitude") 
+        else:
+            ax.set_ylabel("Flux(nanomaggy)")
         ax.annotate(band, xy=(0.98, 0.9),xycoords='axes fraction',\
                     size=12, ha='right', va='top', color=self.color_list[band],\
                     bbox=dict(boxstyle='round', fc='w'))
