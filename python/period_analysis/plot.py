@@ -22,7 +22,7 @@ class plot:
             self.ax_list = {"g":self.axes[0,0],"r":self.axes[0,1],\
                             "i":self.axes[1,0],"z":self.axes[1,1]}
         self.color_list = {"g":"g","r":"orange",\
-                           "i":"brown","z":"purple"}
+                           "i":"brown","z":"purple","total":"black"}
         self.fmt_list = {"DES":{"fmt":"o","markersize":5},\
                          "SDSS_corr":{"fmt":"s","markersize":5},\
                          "PS":{"fmt":"^","markersize":5}
@@ -65,6 +65,24 @@ class plot:
                     bbox=dict(boxstyle='round', fc='w'))
 #        ax.legend()
 
+    def plot_multi_periodogram(self,_freq,psd,band):
+
+        ax = self.axes
+        ax.plot(_freq/365,psd,label=band,c=self.color_list[band])
+        ax.set_xlim(0.8,10)
+        ax.set_ylim(0,1)
+        ax.set_xscale("log")
+        ax.set_xticks([1,2,4,8,10])
+        ax.set_xticklabels([1,2,4,8,10])
+        ax.fill_betweenx([0.0, 1.05], 0.8,  500./365., color='grey', alpha='0.5')
+        ax.fill_betweenx([0.0, 1.05], max(_freq)/365/3,  max(_freq)/365, \
+                         color='grey', alpha='0.5')
+        ax.set_xlabel("Period(yr)")
+        ax.set_ylabel("Power")
+        #ax.annotate(band, xy=(0.95, 0.90),xycoords='axes fraction',\
+        #            size=12, ha='right', va='top', color=color_list[band],
+        #            bbox=dict(boxstyle='round', fc='w'))
+        ax.legend()
 
     def plot_mock_periodogram(self,_freq, psd,band):
 
@@ -86,8 +104,9 @@ class plot:
         ax.plot(_freq/365,lower,label=band,c=self.color_list[band],\
                 linewidth=0.5)
 
-    def plot_peak_period(self,period):
+    def plot_peak_period(self,period,band):
 
+        ax = self.ax_list[band]
         ax.axvline(x=period, color="r")
 
 

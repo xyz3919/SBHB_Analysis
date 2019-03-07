@@ -22,7 +22,6 @@ dec = float(args.dec[0])
 model = args.model
 name = args.name
 
-print model,name
 # generating the light curves
 
 lc = main.lc_single()

@@ -5,8 +5,9 @@ from scipy import stats
 from scipy.optimize import curve_fit
 import matplotlib
 matplotlib.use('agg')
-from javelin.zylc import get_data
-from javelin.lcmodel import Cont_Model
+#from javelin.zylc import get_data
+#from javelin.lcmodel import Cont_Model
+from gatspy import datasets, periodic
 from quasar_drw import quasar_drw as qso_drw
 from plot import plot
 import useful_funcs
@@ -198,15 +199,33 @@ class analysis:
         cont = Cont_Model(javdata)
         cont.do_mcmc(nwalkers=100, nburn=50, nchain=100,fchain="test.dat")
 
+    def do_multi_band_periodogram(self,lightcurves_total,multi_periodogram):
+
+        print lightcurves_total
+        time,flux,flux_err,band = lightcurves_total
+        time = time.astype(float)
+        flux = flux.astype(float)
+        flux_err = flux_err.astype(float)
+        T_max = float(np.max(time)-np.min(time))
+        T_min = float(T_max/len(flux))
+        model = periodic.LombScargleMultiband(fit_period=True)
+        model.optimizer.period_range=(T_min,T_max)
+        model.fit(time,flux,flux_err,band)
+        periods = np.linspace(T_min,T_max,10*len(flux))
+        P_multi = model.periodogram(periods)
+        print periods,P_multi
+        multi_periodogram.plot_multi_periodogram(periods,P_multi,"total")
 
     def analyze_lightcurve(self,quasar):
 
         periodogram = plot(2,2)
+        multi_periodogram = plot(1,1)
         lightcurve = plot(4,1,figsize=(8,8),sharex=True)
 
         name = quasar["name"]
         print ("-- Analyzing quasar "+name+ "--")
         useful_funcs.create_dir(self.output_dir+name)
+        lightcurves_total = []
 
         for band in self.band_list:
             if not self.check_lightcurves_exist(name,band):
@@ -241,23 +260,30 @@ class analysis:
                 else:
                     period, psd = lc.ls_astroML()
                     periodogram.plot_periodogram(period, psd,band)
+                    multi_periodogram.plot_multi_periodogram(period,psd,band)
                     error_list = self.error_boostraping(lc,periodogram,band)
 
                     period_max = self.check_period_max_amp(period, psd)
-                    periodogram.plot_peak_period(period_max)
                     if period_max is  None:
                         print ("Can not find the peak value !!")
                     else:
+                        periodogram.plot_peak_period(period_max,band)
                         xn,yn = self.fitting(lc.time,lc.signal,lc.error,period_max)
                         lightcurve.plot_fit_curve(xn,yn,band)
-
-                    self.tailored_simulation(lc,band,quasar["z"],name,\
-                                             periodogram,lightcurve)
+                    lightcurves_total.append(np.array([lc.time,lc.signal,\
+                                             lc.error,[band]*len(lc.time)])) 
+#                    self.tailored_simulation(lc,band,quasar["z"],name,\
+#                                             periodogram,lightcurve)
                     self.save_period_amp(period, psd,error_list,\
                                          self.output_dir+name+\
                                          "/periodogram_"+band+".csv")
+        lightcurves_total = np.concatenate(lightcurves_total, axis=1)
+        self.do_multi_band_periodogram(lightcurves_total,\
+                                       multi_periodogram)
+
         lightcurve.savefig(self.output_dir+name,"/lightcurve.png",name)
         periodogram.savefig(self.output_dir+name,"/periodogram.png",name)
+        multi_periodogram.savefig(self.output_dir+name,"/periodogram_multi.png",name)
 
 
     def record_confidence_peak(self):
