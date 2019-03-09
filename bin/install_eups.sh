@@ -86,6 +86,60 @@ pip install --prefix=`pwd`/$pythonpackage_dir gatspy
 # intall scikit-learn
 pip install --prefix=`pwd`/$pythonpackage_dir -U scikit-learn
 
+# install carma by brandonckelly 
+# https://github.com/brandonckelly/carma_pack/blob/master/Linux_install.txt
+'''
+mkdir boost
+wget http://sourceforge.net/projects/boost/files/boost/1.54.0/boost_1_54_0.tar.bz2
+tar --bzip2 -xf boost_1_54_0.tar.bz2
+cd boost_1_54_0
+./bootstrap.sh --prefix=`pwd`/../boost
+./b2 install
+cd ..
+echo "export BOOST_DIR=`pwd`/boost"
+export BOOST_DIR=`pwd`/boost
+'''
+
+eups distrib install boost 1.55.0+0
+setup boost
+echo $'setup boost\n' >> ../setup.sourceme
+
+# 
+mkdir armadillo
+eups distrib install cmake 2.8.12.2+1
+setup cmake
+wget http://sourceforge.net/projects/arma/files/armadillo-9.200.7.tar.xz
+tar xf armadillo-9.200.7.tar.xz
+cd armadillo-9.200.7
+cmake -DCMAKE_INSTALL_PREFIX=`pwd`/../armadillo -DBOOST_ROOT=$BOOST_DIR/  .
+make install
+cd ..
+rm -rf armadillo-9.200.7*
+mkdir `pwd`/armadillo/lib
+ln -s `pwd`/armadillo/lib64/libarmadillo.so `pwd`/armadillo/lib/libarmadillo.so
+export ARMADILLO_DIR=`pwd`/armadillo
+echo "export ARMADILLO_DIR=$ARMADILLO_DIR" >> ../setup.sourceme 
+export LD_LIBRARY_PATH=${ARMADILLO_DIR}/lib:${LD_LIBRARY_PATH}
+echo $'export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${ARMADILLO_DIR}/lib:${ARMADILLO_DIR}/lib64' >> ../setup.sourceme
+
+if [[ ! $(git) ]]; then 
+    eups install git 2.9.5+0
+    setup git
+fi
+git clone https://github.com/brandonckelly/carma_pack.git
+cd carma_pack/src
+python setup.py install
+cd ..
+
+pip install --prefix=`pwd`/$pythonpackage_dir acor
+
+
+
+
+
+
+
+
 # install javelin
 mkdir javelin
 wget https://bitbucket.org/nye17/javelin/downloads/javelin-0.33.tar.gz
