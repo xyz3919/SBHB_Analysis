@@ -121,6 +121,11 @@ export ARMADILLO_DIR=`pwd`/armadillo
 echo "export ARMADILLO_DIR=$ARMADILLO_DIR" >> ../setup.sourceme 
 export LD_LIBRARY_PATH=${ARMADILLO_DIR}/lib:${LD_LIBRARY_PATH}
 echo $'export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${ARMADILLO_DIR}/lib:${ARMADILLO_DIR}/lib64' >> ../setup.sourceme
+mkl_file=`find /usr/local/intel/ -name libmkl_rt.so | grep libmkl_rt.so | grep 64 | head -1`
+MKL_DIR="${mkl_file%/*}"
+export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:$MKL_DIR
+echo "export LD_LIBRARY_PATH="'${LD_LIBRARY_PATH}'":$MKL_DIR" >> ../setup.sourceme
+
 
 if [[ ! $(git) ]]; then 
     eups install git 2.9.5+0
