@@ -166,7 +166,7 @@ class plot:
         ax_list = {"g":self.axes[0],"r":self.axes[1],\
                    "i":self.axes[2],"z":self.axes[3]}
         ax = ax_list[band]
-        ax.plot(time,signal,label=band,c="grey",linewidth=0.001)
+        ax.plot(time,signal,label=band,c="grey",linewidth=0.1)
 
     def savefig(self,dir_output,name,title):
 

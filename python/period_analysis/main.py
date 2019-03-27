@@ -8,6 +8,7 @@ matplotlib.use('agg')
 #from javelin.zylc import get_data
 #from javelin.lcmodel import Cont_Model
 from gatspy import datasets, periodic
+import carmcmc as cm
 from quasar_drw import quasar_drw as qso_drw
 from plot import plot
 import useful_funcs
@@ -23,6 +24,7 @@ class analysis:
         useful_funcs.create_dir(self.output_dir)
         self.stat_dir = "statistics/"
         useful_funcs.create_dir(self.stat_dir)
+        self.carma_dir = "carma/"
         self.random_state = np.random.RandomState(0)
         self.band_list = ["g", "r", "i", "z"]
         self.surveys = ["DES", "SDSS_corr"]
@@ -216,15 +218,40 @@ class analysis:
         print periods,P_multi
         multi_periodogram.plot_multi_periodogram(periods,P_multi,"total")
 
+    def do_carma_process(self,lc,band,periodogram,lightcurve):
+
+        p = 2
+        q = 1
+        model = cm.CarmaModel(lc.time, lc.signal, lc.error, p=p, q=q)
+        sample = model.run_mcmc(10000)
+        #psd_low, psd_hi, psd_mid, frequencies = sample.plot_power_spectrum(percentile=95.0, nsamples=5000)
+        npaths = 500
+        psd_mock_all = []
+        for i in range(npaths):
+            print i
+            time_cont = np.linspace(min(lc.time),max(lc.time),\
+                                    int((max(lc.time)-min(lc.time))/1.))
+            time_cont_sim = time_cont+max(lc.time)
+            signal_sim_cont = sample.simulate(time_cont_sim, bestfit='random')
+            signal_sim = np.interp(lc.time, time_cont, signal_sim_cont)
+            period_mock,psd_mock = lc.periodogram(lc.time,signal_sim)
+            psd_mock_all.append(psd_mock)
+            periodogram.plot_mock_periodogram(period_mock,psd_mock,band)
+            #lightcurve.plot_mock_curve(time_cont,signal_sim_cont,band)
+        periodogram.plot_confidence_level(period_mock,psd_mock_all,band)
+
+
     def analyze_lightcurve(self,quasar):
 
         periodogram = plot(2,2)
         multi_periodogram = plot(1,1)
+        periodogram_carma = plot(2,2)
         lightcurve = plot(4,1,figsize=(8,8),sharex=True)
 
         name = quasar["name"]
         print ("-- Analyzing quasar "+name+ "--")
         useful_funcs.create_dir(self.output_dir+name)
+        useful_funcs.create_dir(self.output_dir+name+"/"+self.carma_dir)
         lightcurves_total = []
 
         for band in self.band_list:
@@ -261,6 +288,7 @@ class analysis:
                     period, psd = lc.ls_astroML()
                     periodogram.plot_periodogram(period, psd,band)
                     multi_periodogram.plot_multi_periodogram(period,psd,band)
+                    periodogram_carma.plot_periodogram(period,psd,band)
                     error_list = self.error_boostraping(lc,periodogram,band)
 
                     period_max = self.check_period_max_amp(period, psd)
@@ -272,8 +300,9 @@ class analysis:
                         lightcurve.plot_fit_curve(xn,yn,band)
                     lightcurves_total.append(np.array([lc.time,lc.signal,\
                                              lc.error,[band]*len(lc.time)])) 
-#                    self.tailored_simulation(lc,band,quasar["z"],name,\
-#                                             periodogram,lightcurve)
+                    self.tailored_simulation(lc,band,quasar["z"],name,\
+                                             periodogram,lightcurve)
+                    self.do_carma_process(lc,band,periodogram_carma,lightcurve)
                     self.save_period_amp(period, psd,error_list,\
                                          self.output_dir+name+\
                                          "/periodogram_"+band+".csv")
@@ -284,6 +313,7 @@ class analysis:
         lightcurve.savefig(self.output_dir+name,"/lightcurve.png",name)
         periodogram.savefig(self.output_dir+name,"/periodogram.png",name)
         multi_periodogram.savefig(self.output_dir+name,"/periodogram_multi.png",name)
+        periodogram_carma.savefig(self.output_dir+name,"/periodogram_carma.png",name)
 
 
     def record_confidence_peak(self):
