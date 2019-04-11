@@ -5,8 +5,8 @@ from scipy import stats
 from scipy.optimize import curve_fit
 import matplotlib
 matplotlib.use('agg')
-#from javelin.zylc import get_data
-#from javelin.lcmodel import Cont_Model
+from javelin.zylc import get_data
+from javelin.lcmodel import Cont_Model
 from gatspy import datasets, periodic
 import carmcmc as cm
 from quasar_drw import quasar_drw as qso_drw
@@ -45,7 +45,7 @@ class analysis:
 
         zipdata = zip(lc.time,lc.signal,lc.error)
         filename = self.lc_dir+"combined/"+name+"/"+band+".dat"
-        np.savetxt(filename,zipdata,delimiter=" ",comments="")
+        np.savetxt(filename,zipdata,delimiter=" ",comments="",fmt='%f')
 
         return filename
 
@@ -120,8 +120,8 @@ class analysis:
         excluded = np.zeros(len(parameters_list[:,0]), dtype=bool)
         for i in range(0, num_parameters-1):
             array = parameters_list[:, i]
-            upper = np.percentile(array, 90)
-            lower = np.percentile(array, 10)
+            upper = np.percentile(array, 95)
+            lower = np.percentile(array, 5)
             excluded = (excluded) | ( ~((array<upper) & (array>lower) ) ) 
         parameters_list = parameters_list[~excluded]
         return parameters_list
@@ -131,6 +131,14 @@ class analysis:
         save_data = zip(_freq, psd, error)
         np.savetxt(filename, save_data, delimiter=",", comments="",\
                    header="period,amplitude,error")
+
+    def save_drw_parameters(self, tau, var, mu,filename):
+
+        # save DRW parameters (tai, variance and mean) 
+
+        save_data = zip(tau,var,mu)
+        np.savetxt(filename, save_data, delimiter=",", comments="",\
+                   header="tau,var,mu")
 
     def add_flux_fluxerr_into_data(self,data):
 
@@ -153,7 +161,7 @@ class analysis:
 
         psd_mock_all = []
         if self.test is True: 
-            nwalkers,burnin,Nsteps,draw_times = 100,20,100,10
+            nwalkers,burnin,Nsteps,draw_times = 100,50,100,10
         else:
             nwalkers = 500
             burnin = 150
@@ -162,15 +170,21 @@ class analysis:
 
         samples =  lc.fit_drw_emcee(nwalkers=nwalkers, burnin=burnin,\
                            Nstep=Nsteps,random_state=self.random_state)
-        walkers = plot(2,1,figsize=(10,7), sharex=True)
+        walkers = plot(3,1,figsize=(10,7), sharex=True)
         walkers.plot_walkers(np.exp(samples))
+        from plot import plot_posterior
+
         walkers.savefig(self.output_dir+name,"/walker_"+band+".png",band+" band")
 
-        parameters_list = samples[:, burnin:, :].reshape((-1, 2))
+        parameters_list = samples[:, burnin:, :].reshape((-1, 3))
+
+        #plot_posterior(np.exp(parameters_list),band)
         parameters_list_good = self.clean_parameters_list(parameters_list)
+        print parameters_list_good
+        #plot_posterior(np.exp(parameters_list_good),band)
 
         for i in range(draw_times):
-            tau,c = np.exp(parameters_list_good[self.random_state.randint(\
+            tau,c,b = np.exp(parameters_list_good[self.random_state.randint(\
                     len(parameters_list_good))])
             mock_time,mock_signal = lc.generate_mock_lightcurve(tau,c,lc.time,\
                                     lc.signal,z,random_state=self.random_state)
@@ -199,7 +213,8 @@ class analysis:
         filename = self.make_combined_lc_for_javelin(lc,name,band)
         javdata = get_data(filename,names=["Continuum"])
         cont = Cont_Model(javdata)
-        cont.do_mcmc(nwalkers=100, nburn=50, nchain=100,fchain="test.dat")
+        cont.do_mcmc(nwalkers=500, nburn=100, nchain=500,fchain="test.dat")
+        cont.show_hist(figout="javelin_%s" % band, figext=".png")
 
     def do_multi_band_periodogram(self,lightcurves_total,multi_periodogram):
 
@@ -218,19 +233,30 @@ class analysis:
         print periods,P_multi
         multi_periodogram.plot_multi_periodogram(periods,P_multi,"total")
 
-    def do_carma_process(self,lc,band,periodogram,lightcurve):
+    def do_carma_process(self,lc,band,name,periodogram,lightcurve):
 
-        p = 2
-        q = 1
+        """ Using carma-pack to fit DRW model"""
+
+        p = 1
+        q = 0
+        sample_number = 100000
         model = cm.CarmaModel(lc.time, lc.signal, lc.error, p=p, q=q)
-        sample = model.run_mcmc(10000)
-        #psd_low, psd_hi, psd_mid, frequencies = sample.plot_power_spectrum(percentile=95.0, nsamples=5000)
-        npaths = 500
+        sample = model.run_mcmc(sample_number)
+        tau = 1./np.exp(sample.get_samples("log_omega"))
+        var = sample.get_samples("var")
+        mu = sample.get_samples("mu")
+        array = np.array([tau,var,mu]).T[0]
+        from plot import plot_posterior_carma
+        plot_posterior_carma(array,band,\
+                             self.output_dir+name+"/post_carma_%s.png" % band)
+        self.save_drw_parameters(tau,var,mu,self.output_dir+name+\
+                                 "/post_carma_%s.txt" % band)
+
+        npaths = 5000
         psd_mock_all = []
         for i in range(npaths):
-            print i
             time_cont = np.linspace(min(lc.time),max(lc.time),\
-                                    int((max(lc.time)-min(lc.time))/1.))
+                                    int((max(lc.time)-min(lc.time))/2.))
             time_cont_sim = time_cont+max(lc.time)
             signal_sim_cont = sample.simulate(time_cont_sim, bestfit='random')
             signal_sim = np.interp(lc.time, time_cont, signal_sim_cont)
@@ -239,9 +265,22 @@ class analysis:
             periodogram.plot_mock_periodogram(period_mock,psd_mock,band)
             #lightcurve.plot_mock_curve(time_cont,signal_sim_cont,band)
         periodogram.plot_confidence_level(period_mock,psd_mock_all,band)
+        psd_at_each_period = zip(*psd_mock_all)
+        confidence_levels = []
+        period_obs, psd_obs = lc.ls_astroML()
+        for i in range(len(period_obs)):
+            confidence_level_at_each_period = float(stats.percentileofscore(\
+                                              psd_at_each_period[i],psd_obs[i]))
+            confidence_levels.append(100.-confidence_level_at_each_period)
+        self.save_period_confidence_level(period_obs,confidence_levels,\
+                                   self.output_dir+name+"/confidence_"+\
+                                   band+".csv")
+        periodogram.plot_confidence_level(period_mock, psd_mock_all, band)
 
 
     def analyze_lightcurve(self,quasar):
+
+        """ the main analyzing function """
 
         periodogram = plot(2,2)
         multi_periodogram = plot(1,1)
@@ -265,6 +304,8 @@ class analysis:
                 data = self.add_flux_fluxerr_into_data(data)
                 lc = qso_drw(data["mjd_obs"],data["flux_psf"],\
                              data["flux_err_psf"], quasar["z"],\
+#                lc = qso_drw(data["mjd_obs"],data["mag_psf"],\
+#                             data["mag_err_psf"], quasar["z"],\
                              preprocess=True)
                 time, signal, error = lc.get_lc()
 
@@ -276,10 +317,14 @@ class analysis:
                     data = self.add_flux_fluxerr_into_data(data)
                     lc2 = qso_drw(data["mjd_obs"],data["flux_psf"],\
                                  data["flux_err_psf"], quasar["z"],\
+#                    lc2 = qso_drw(data["mjd_obs"],data["mag_psf"],\
+#                                  data["mag_err_psf"], quasar["z"],\
                                  preprocess=True)
                     time, signal, error = lc2.get_lc()
-                    lightcurve.plot_light_curve(time,signal,error,survey,band)
-                    lc.add_lc(time, signal, error,preprocess=False)
+                    if len(signal) > 0 :
+                        lightcurve.plot_light_curve(time,signal,error,\
+                                                    survey,band)
+                        lc.add_lc(time, signal, error,preprocess=False)
 
                 # periodogram
                 if not len(lc.time)>3:
@@ -289,7 +334,8 @@ class analysis:
                     periodogram.plot_periodogram(period, psd,band)
                     multi_periodogram.plot_multi_periodogram(period,psd,band)
                     periodogram_carma.plot_periodogram(period,psd,band)
-                    error_list = self.error_boostraping(lc,periodogram,band)
+                    #error_list = self.error_boostraping(lc,periodogram,band)
+                    error_list = self.error_boostraping(lc,periodogram_carma,band)
 
                     period_max = self.check_period_max_amp(period, psd)
                     if period_max is  None:
@@ -300,9 +346,9 @@ class analysis:
                         lightcurve.plot_fit_curve(xn,yn,band)
                     lightcurves_total.append(np.array([lc.time,lc.signal,\
                                              lc.error,[band]*len(lc.time)])) 
-                    self.tailored_simulation(lc,band,quasar["z"],name,\
-                                             periodogram,lightcurve)
-                    self.do_carma_process(lc,band,periodogram_carma,lightcurve)
+                    #self.tailored_simulation(lc,band,quasar["z"],name,\
+                    #                         periodogram,lightcurve)
+                    self.do_carma_process(lc,band,name,periodogram_carma,lightcurve)
                     self.save_period_amp(period, psd,error_list,\
                                          self.output_dir+name+\
                                          "/periodogram_"+band+".csv")
@@ -358,6 +404,36 @@ class analysis:
         strong_cand = cand[cand["yes"]>1]
         strong_cand.to_csv(self.stat_dir+"strong_candidates.csv",index=False)
 
+    def generate_drw_parameters_plot(self):
+
+        """ Plot the DRW parameters for the whole sample"""
+        for band in self.band_list:
+            print band
+            quasar_catalog = self.read_quasar_catalog()
+            tau_total = []
+            var_total = []
+            for quasar in quasar_catalog:
+                name = quasar["name"]
+                z = quasar["z"]
+                print name
+                if os.path.exists(self.output_dir+name+"/post_carma_%s.txt" %\
+                                 band):
+                    parameters = pd.read_csv(self.output_dir+name+\
+                                 "/post_carma_%s.txt" % band,\
+                                 names = ["tau","var","mu"],skiprows=1)
+                    median = np.median(parameters,axis=0)
+                    median[0] = median[0]/(1+z)
+                    median = np.log10(median)
+                    tau_total.append(median[0])
+                    var_total.append(median[1])
+
+            from plot import plot_drw_parameters
+            plot_drw_parameters(tau_total,var_total,band,\
+                                self.stat_dir+"drw_paramets_%s.png" % band)
+         
+
+
+
     def make_pdf_for_strong_candidates(self):
 
         """ making the latex file and figure dir for stong cadidates """
@@ -372,7 +448,7 @@ class analysis:
         body1 = "\\begin{figure}[!bp]\n"+\
                 "\\begin{minipage}[b]{0.48\\textwidth}\n"+\
                 "\\includegraphics[width=\\textwidth]"+\
-                "{%s/periodogram.png}\n"+\
+                "{%s/periodogram_carma.png}\n"+\
                 "\\end{minipage}\n"+\
                 "\\hfill\n"+\
                 "\\begin{minipage}[b]{0.48\\textwidth}\n"+\
@@ -392,7 +468,7 @@ class analysis:
             for index, row in quasars_times.iterrows():
                 name = row["name"]
                 useful_funcs.create_dir(self.pdf_dir+name)
-                os.system("cp "+self.output_dir+name+"/periodogram.png "+\
+                os.system("cp "+self.output_dir+name+"/periodogram_carma.png "+\
                           self.pdf_dir+name)
                 os.system("cp "+self.output_dir+name+"/lightcurve.png "+\
                           self.pdf_dir+name)

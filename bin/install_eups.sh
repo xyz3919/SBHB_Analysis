@@ -23,7 +23,7 @@ python desdm_eupsinstall.py
 source ./eups/desdm_eups_setup.sh
 
 #eups distrib install python 2.7.9+2
-#eups distrib install setuptools 40.4.3+0
+eups distrib install setuptools 18.0+1
 eups distrib install numpy 1.10.4+4
 eups distrib install scipy 0.14.0+10
 eups distrib install despydb 2.0.4+0
@@ -37,7 +37,7 @@ eups distrib install swarp 2.40.1+0
 
 cd ..
 
-echo $'setup numpy\nsetup scipy\nsetup despydb'>>setup.sourceme
+echo $'setup setuptools\n setup numpy\nsetup scipy\nsetup despydb'>>setup.sourceme
 echo $'setup astropy\nsetup despymisc\nsetup matplotlib'>>setup.sourceme
 echo $'setup pandas\nsetup sextractor\nsetup psfex\nsetup swarp\n'>>setup.sourceme
 
@@ -74,8 +74,8 @@ echo $'export PATH=$PATH:'`pwd`/$'bin/' >> ../setup.sourceme
 pip install --prefix=`pwd`/$pythonpackage_dir astroquery
 
 # install astroML
-pip install --prefix=`pwd`/$pythonpackage_dir astroML
-pip install --prefix=`pwd`/$pythonpackage_dir astroML_addons
+pip install --prefix=`pwd`/$pythonpackage_dir astroML==0.3
+pip install --prefix=`pwd`/$pythonpackage_dir astroML_addons==0.2.2
 
 # install emcee
 pip install --prefix=`pwd`/$pythonpackage_dir emcee
@@ -85,6 +85,9 @@ pip install --prefix=`pwd`/$pythonpackage_dir gatspy
 
 # intall scikit-learn
 pip install --prefix=`pwd`/$pythonpackage_dir -U scikit-learn
+
+# install  corner for ploting posterior
+pip install --prefix=`pwd`/$pythonpackage_dir corner
 
 # install carma by brandonckelly 
 # https://github.com/brandonckelly/carma_pack/blob/master/Linux_install.txt
@@ -134,12 +137,9 @@ fi
 git clone https://github.com/brandonckelly/carma_pack.git
 cd carma_pack/src
 python setup.py install
-cd ..
+cd ../..
 
 pip install --prefix=`pwd`/$pythonpackage_dir acor
-
-
-
 
 
 

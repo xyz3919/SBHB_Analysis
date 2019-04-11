@@ -127,8 +127,8 @@ class quasar_drw:
     ### ********************************* ###
     
     def fit_drw_emcee(self, nwalkers=500, burnin=150, Nstep=500,random_state=np.random.RandomState(0)):
-        ndim = 2
-        #ndim    = 3
+        #ndim = 2
+        ndim    = 3
         pos     = []
         
         z           = self.redshift
@@ -138,16 +138,20 @@ class quasar_drw:
         
         # use most likely val as a initial guess
         nll = lambda *args: -lnlike(*args)
-        result = op.minimize(nll, [np.log(300.), np.log(0.001)], args=(self.time, self.signal, self.error, self.redshift),method='BFGS',options={"maxiter":500})
-        
+#        signal = signal-np.mean(signal)
+        result = op.minimize(nll, [np.log(300.), np.log(0.0001), np.log(np.mean(signal)/300.)], args=(self.time, self.signal, self.error, self.redshift),method="Nelder-Mead")
+        # "BFGS"
+
         tau_center = np.exp(result["x"][0])
         c_center   = np.exp(result["x"][1])
-        #b_center   = np.exp(result["x"][2])
+        b_center   = np.exp(result["x"][2])
+        #c_center = 0.0001
+
         
         print("Initial guess of (tau, c, b) = (" + format(np.exp(result["x"][0]), ".2f") + ", " \
-                                                 + format(np.exp(result["x"][1]), ".2e") + ") " \
-                                                 )
-         #                                        + format(np.exp(result["x"][2]), ".2f") + " )" )
+                                                 + format(np.exp(result["x"][1]), ".2e") + ", " \
+         #                                        )
+                                                 + format(np.exp(result["x"][2]), ".2f") + " )" )
         
         ## initiate a gaussian distribution aroun dthe mean value
         ## modify this part if needed
@@ -157,18 +161,19 @@ class quasar_drw:
 #        tau_sample = np.random.lognormal(mean=np.log(tau_center), sigma=0.1, size=nwalkers)
         c_sample   = random_state.lognormal(mean=np.log(c_center),   sigma=1.0, size=nwalkers)
 #        c_sample   = np.random.lognormal(mean=np.log(c_center),   sigma=0.1, size=nwalkers)
-#        b_sample   = random_state.lognormal(mean=np.log(b_center),   sigma=2.0, size=nwalkers)
+        b_sample   = random_state.lognormal(mean=np.log(b_center),   sigma=1.0, size=nwalkers)
 #        b_sample   = np.random.lognormal(mean=np.log(b_center),   sigma=0.1, size=nwalkers)
 
         
-#        tau_sample, c_sample, b_sample = np.log(tau_sample), np.log(c_sample), np.log(b_sample)
-        tau_sample,c_sample = np.log(tau_sample), np.log(c_sample)
+        tau_sample, c_sample, b_sample = np.log(tau_sample), np.log(c_sample), np.log(b_sample)
+#        tau_sample,c_sample = np.log(tau_sample), np.log(c_sample)
+#        print list(tau_sample)
         
         for i in range(nwalkers):
-#            parameter = np.array([tau_sample[i], c_sample[i], b_sample[i]])
-            parameter = np.array([tau_sample[i], c_sample[i]])
+            parameter = np.array([tau_sample[i], c_sample[i], b_sample[i]])
+#            parameter = np.array([tau_sample[i], c_sample[i]])
             pos.append(parameter)
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=(time, signal, error, z), a=4.0)
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=(time, signal, error, z), a=2.0)
         
         # import random state 
         sampler.random_state = random_state.get_state()
@@ -240,7 +245,7 @@ class quasar_drw:
         self.signal = self.signal[idx]
         self.error  = self.error[idx]
         
-        after_clip = sigma_clip(self.signal, sigma=sigma, iters=iters, copy=True)
+        after_clip = sigma_clip(self.signal, sigma=sigma, iters=iters, cenfunc=median, copy=True)
         
         idx = ~(after_clip.mask)
         self.time   = self.time[idx]
@@ -374,12 +379,16 @@ def likelihood_P(time, signal, error, tau_fit, c_fit, b_fit):
 # set up for likelihood function
 #def lnlike(theta, time, signal, error, z):
 def lnlike(theta, time,signal,error,z):
-    lntau, lnc = theta
-    #lntau, lnc, lnb = theta
-    b_fit = np.mean(signal)/np.exp(lntau)
-    tau_fit = np.exp(lntau) * (1.0+z)
-    c_fit   = np.exp(lnc) * np.sqrt(1.0+z)
+    #lntau, lnc = theta
+    lntau, lnc, lnb = theta
+    #b_fit = np.mean(signal)/np.exp(lntau)
+    #tau_fit = np.exp(lntau) * (1.0+z)
+    #c_fit   = np.exp(lnc) * np.sqrt(1.0+z)
+    #c_fit   = np.exp(lnc) / (1.0+z) 
     #b_fit   = np.exp(lnb) / (1.0+z)
+    tau_fit = np.exp(lntau)
+    c_fit = np.exp(lnc)
+    b_fit = np.exp(lnb)
     P_array = likelihood_P(time, signal, error, tau_fit, c_fit, b_fit)
     Prob    = np.prod(P_array)
         
@@ -393,12 +402,14 @@ def lnlike(theta, time,signal,error,z):
 #def lnprior(theta, z, time):    
 def lnprior(theta, z, time):
     # prior is determined in the rest frame, no need to multiply (1+z)
-#    lntau, lnc, lnb = theta
-#    tau_fit, c_fit, b_fit = np.exp(lntau), np.exp(lnc), np.exp(lnb)
-    lntau, lnc = theta
-    tau_fit,c_fit = np.exp(lntau),np.exp(lnc)
+    lntau, lnc, lnb = theta
+    tau_fit, c_fit, b_fit = np.exp(lntau), np.exp(lnc), np.exp(lnb)
+#    lntau, lnc = theta
+#    tau_fit,c_fit = np.exp(lntau),np.exp(lnc)
     
-    if 1.0 < tau_fit*(1.0+z) < (np.max(time)-np.min(time)) and c_fit > 0.0 :
+#    if 1.0 < tau_fit*(1.0+z) < (np.max(time)-np.min(time)) and c_fit > 0.0 :
+#    if c_fit > 0.0 and b_fit*tau_fit < 30 and 1.0 < tau_fit < (np.max(time)-np.min(time)):
+    if c_fit> 0.0 and b_fit*tau_fit > 0.0001 and 1.0 < tau_fit < (np.max(time)-np.min(time)):
         return 0.0
     else:
         return -np.inf

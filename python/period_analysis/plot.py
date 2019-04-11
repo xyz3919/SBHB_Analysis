@@ -153,13 +153,16 @@ class plot:
     def plot_walkers(self,samples):
 
         labels = ["tau", "c", "b"]
-        for i in range(2):
+        for i in range(3):
             ax = self.axes[i]
-            ax.plot(samples[:, :, i].T, "k", alpha=0.3)
+            upper,lower = np.percentile(samples[:,:,i],99),np.percentile(samples[:,:,i],1)
+            ax.plot(samples[:, :, i].T, "k", alpha=0.05)
+            ax.set_ylim(lower,upper)
             ax.set_ylabel(labels[i])
+            ax.set_yscale('log')
             #ax.yaxis.set_label_coords(-0.1, 0.5)
         self.axes[-1].set_xlabel("step number")
-        
+
 
     def plot_mock_curve(self,time,signal,band):
 
@@ -174,6 +177,87 @@ class plot:
         self.f.suptitle(title)
         self.f.savefig(dir_output+name)
         plt.close(self.f)
+
+
+def plot_posterior(samples,band,save_path):
+
+    samples[:,1] = samples[:,1]*samples[:,0]/2
+    samples[:,2] = samples[:,2]
+    samples[:,0:2] = np.log10(samples[:,0:2])
+    #print list(samples[:,2])
+    import corner
+    ndim = 3
+    axrange = []
+    sigma = np.std(samples,axis=0)
+    median = np.median(samples,axis=0)
+#    for i in range(ndim):
+#        axrange.append((median[i]-3*sigma[i],median[i]+3*sigma[i]))
+    fig = corner.corner(samples,labels=[r"$log(\tau[days])$",\
+                        r"$log(var[flux])$",r"$mean[flux]$"],\
+                        quantiles=[0.16, 0.5, 0.84],\
+                        show_titles=True, title_kwargs={"fontsize": 12},\
+                        plot_datapoints=False)
+                        #range = axrange)
+    axes = np.array(fig.axes).reshape((ndim, ndim))
+#    value = np.median(samples, axis=0)
+    # for the diagonal histograms
+    for i in range(ndim):
+        ax = axes[i, i]
+        ax.axvline(median[i], color="g")
+    # for the 2-D posterior contours
+    for yi in range(ndim):
+        for xi in range(yi):
+            ax = axes[yi, xi]
+            ax.axvline(median[xi], color="g")
+            ax.axhline(median[yi], color="g")
+            ax.plot(median[xi], median[yi], "sg")
+    fig.suptitle(band)
+    fig.savefig(save_path)
+
+def plot_posterior_carma(samples,band,save_path):
+
+    samples[:,0:2] = np.log10(samples[:,0:2])
+    #print list(samples[:,2])
+    import corner
+    ndim = 3
+    axrange = []
+    sigma = np.std(samples,axis=0)
+    median = np.median(samples,axis=0)
+#    for i in range(ndim):
+#        axrange.append((median[i]-3*sigma[i],median[i]+3*sigma[i]))
+    fig = corner.corner(samples,labels=[r"$log(\tau[days])$",\
+                        r"$log(var[flux])$",r"$mean[flux]$"],\
+                        quantiles=[0.16, 0.5, 0.84],\
+                        show_titles=True, title_kwargs={"fontsize": 12},\
+                        plot_datapoints=False)
+                        #range = axrange)
+    axes = np.array(fig.axes).reshape((ndim, ndim))
+#    value = np.median(samples, axis=0)
+    # for the diagonal histograms
+    for i in range(ndim):
+        ax = axes[i, i]
+        ax.axvline(median[i], color="g")
+    # for the 2-D posterior contours
+    for yi in range(ndim):
+        for xi in range(yi):
+            ax = axes[yi, xi]
+            ax.axvline(median[xi], color="g")
+            ax.axhline(median[yi], color="g")
+            ax.plot(median[xi], median[yi], "sg")
+
+    fig.suptitle(band)
+    fig.savefig(save_path)
+
+
+
+def plot_drw_parameters(tau,sigma,band,save_path):
+
+    import corner
+    samples = np.array([tau,sigma]).T
+    fig = corner.corner(samples,labels=[r"$log(\tau[days])$",\
+          r"$log(var[flux])$"],titles_kwargs={"fontsize":12})
+    fig.suptitle(band)
+    fig.savefig(save_path)
 
 
         

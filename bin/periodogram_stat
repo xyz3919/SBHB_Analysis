@@ -11,6 +11,7 @@ if __name__ == '__main__':
     analysis = main.analysis()
     analysis.record_confidence_peak()
     analysis.find_strong_candidates()
+    analysis.generate_drw_parameters_plot()
 
     analysis.make_pdf_for_strong_candidates()
 
