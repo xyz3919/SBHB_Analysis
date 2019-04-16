@@ -178,10 +178,11 @@ class analysis:
 
         parameters_list = samples[:, burnin:, :].reshape((-1, 3))
 
-        #plot_posterior(np.exp(parameters_list),band)
+        #plot_posterior(np.exp(parameters_list),band,self.output_dir+name+\
+        #               "/post_%s.png" % band)
         parameters_list_good = self.clean_parameters_list(parameters_list)
-        print parameters_list_good
-        #plot_posterior(np.exp(parameters_list_good),band)
+        plot_posterior(np.exp(parameters_list_good),band,self.output_dir+name+\
+                       "/post_%s.png" % band)
 
         for i in range(draw_times):
             tau,c,b = np.exp(parameters_list_good[self.random_state.randint(\
@@ -218,7 +219,6 @@ class analysis:
 
     def do_multi_band_periodogram(self,lightcurves_total,multi_periodogram):
 
-        print lightcurves_total
         time,flux,flux_err,band = lightcurves_total
         time = time.astype(float)
         flux = flux.astype(float)
@@ -230,7 +230,6 @@ class analysis:
         model.fit(time,flux,flux_err,band)
         periods = np.linspace(T_min,T_max,10*len(flux))
         P_multi = model.periodogram(periods)
-        print periods,P_multi
         multi_periodogram.plot_multi_periodogram(periods,P_multi,"total")
 
     def do_carma_process(self,lc,band,name,periodogram,lightcurve):
@@ -284,7 +283,7 @@ class analysis:
 
         periodogram = plot(2,2)
         multi_periodogram = plot(1,1)
-        periodogram_carma = plot(2,2)
+        #periodogram_carma = plot(2,2)
         lightcurve = plot(4,1,figsize=(8,8),sharex=True)
 
         name = quasar["name"]
@@ -302,10 +301,10 @@ class analysis:
                 survey = self.surveys[0]
                 data = self.read_lightcurve(name,survey,band)
                 data = self.add_flux_fluxerr_into_data(data)
-                lc = qso_drw(data["mjd_obs"],data["flux_psf"],\
-                             data["flux_err_psf"], quasar["z"],\
-#                lc = qso_drw(data["mjd_obs"],data["mag_psf"],\
-#                             data["mag_err_psf"], quasar["z"],\
+#                lc = qso_drw(data["mjd_obs"],data["flux_psf"],\
+#                             data["flux_err_psf"], quasar["z"],\
+                lc = qso_drw(data["mjd_obs"],data["mag_psf"],\
+                             data["mag_err_psf"], quasar["z"],\
                              preprocess=True)
                 time, signal, error = lc.get_lc()
 
@@ -315,10 +314,10 @@ class analysis:
                 for survey in self.surveys[1:]:
                     data = self.read_lightcurve(name,survey,band)
                     data = self.add_flux_fluxerr_into_data(data)
-                    lc2 = qso_drw(data["mjd_obs"],data["flux_psf"],\
-                                 data["flux_err_psf"], quasar["z"],\
-#                    lc2 = qso_drw(data["mjd_obs"],data["mag_psf"],\
-#                                  data["mag_err_psf"], quasar["z"],\
+#                    lc2 = qso_drw(data["mjd_obs"],data["flux_psf"],\
+#                                 data["flux_err_psf"], quasar["z"],\
+                    lc2 = qso_drw(data["mjd_obs"],data["mag_psf"],\
+                                  data["mag_err_psf"], quasar["z"],\
                                  preprocess=True)
                     time, signal, error = lc2.get_lc()
                     if len(signal) > 0 :
@@ -333,9 +332,9 @@ class analysis:
                     period, psd = lc.ls_astroML()
                     periodogram.plot_periodogram(period, psd,band)
                     multi_periodogram.plot_multi_periodogram(period,psd,band)
-                    periodogram_carma.plot_periodogram(period,psd,band)
-                    #error_list = self.error_boostraping(lc,periodogram,band)
-                    error_list = self.error_boostraping(lc,periodogram_carma,band)
+                    #periodogram_carma.plot_periodogram(period,psd,band)
+                    error_list = self.error_boostraping(lc,periodogram,band)
+                    #error_list = self.error_boostraping(lc,periodogram_carma,band)
 
                     period_max = self.check_period_max_amp(period, psd)
                     if period_max is  None:
@@ -346,9 +345,9 @@ class analysis:
                         lightcurve.plot_fit_curve(xn,yn,band)
                     lightcurves_total.append(np.array([lc.time,lc.signal,\
                                              lc.error,[band]*len(lc.time)])) 
-                    #self.tailored_simulation(lc,band,quasar["z"],name,\
-                    #                         periodogram,lightcurve)
-                    self.do_carma_process(lc,band,name,periodogram_carma,lightcurve)
+                    self.tailored_simulation(lc,band,quasar["z"],name,\
+                                             periodogram,lightcurve)
+                    #self.do_carma_process(lc,band,name,periodogram_carma,lightcurve)
                     self.save_period_amp(period, psd,error_list,\
                                          self.output_dir+name+\
                                          "/periodogram_"+band+".csv")
@@ -359,7 +358,7 @@ class analysis:
         lightcurve.savefig(self.output_dir+name,"/lightcurve.png",name)
         periodogram.savefig(self.output_dir+name,"/periodogram.png",name)
         multi_periodogram.savefig(self.output_dir+name,"/periodogram_multi.png",name)
-        periodogram_carma.savefig(self.output_dir+name,"/periodogram_carma.png",name)
+        #periodogram_carma.savefig(self.output_dir+name,"/periodogram_carma.png",name)
 
 
     def record_confidence_peak(self):

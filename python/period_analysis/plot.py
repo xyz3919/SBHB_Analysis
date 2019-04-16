@@ -152,7 +152,9 @@ class plot:
 
     def plot_walkers(self,samples):
 
-        labels = ["tau", "c", "b"]
+        samples[:,:,1] = samples[:,:,0]*samples[:,:,1]/2
+        samples[:,:,2] = samples[:,:,0]*samples[:,:,2]
+        labels = ["tau", "var", "mean"]
         for i in range(3):
             ax = self.axes[i]
             upper,lower = np.percentile(samples[:,:,i],99),np.percentile(samples[:,:,i],1)
@@ -182,7 +184,7 @@ class plot:
 def plot_posterior(samples,band,save_path):
 
     samples[:,1] = samples[:,1]*samples[:,0]/2
-    samples[:,2] = samples[:,2]
+    samples[:,2] = samples[:,2]*samples[:,0]
     samples[:,0:2] = np.log10(samples[:,0:2])
     #print list(samples[:,2])
     import corner
@@ -193,7 +195,7 @@ def plot_posterior(samples,band,save_path):
 #    for i in range(ndim):
 #        axrange.append((median[i]-3*sigma[i],median[i]+3*sigma[i]))
     fig = corner.corner(samples,labels=[r"$log(\tau[days])$",\
-                        r"$log(var[flux])$",r"$mean[flux]$"],\
+                        r"$log(var[mag])$",r"$mean[mag]$"],\
                         quantiles=[0.16, 0.5, 0.84],\
                         show_titles=True, title_kwargs={"fontsize": 12},\
                         plot_datapoints=False)
@@ -226,7 +228,7 @@ def plot_posterior_carma(samples,band,save_path):
 #    for i in range(ndim):
 #        axrange.append((median[i]-3*sigma[i],median[i]+3*sigma[i]))
     fig = corner.corner(samples,labels=[r"$log(\tau[days])$",\
-                        r"$log(var[flux])$",r"$mean[flux]$"],\
+                        r"$log(var[mag])$",r"$mean[mag]$"],\
                         quantiles=[0.16, 0.5, 0.84],\
                         show_titles=True, title_kwargs={"fontsize": 12},\
                         plot_datapoints=False)
@@ -255,7 +257,7 @@ def plot_drw_parameters(tau,sigma,band,save_path):
     import corner
     samples = np.array([tau,sigma]).T
     fig = corner.corner(samples,labels=[r"$log(\tau[days])$",\
-          r"$log(var[flux])$"],titles_kwargs={"fontsize":12})
+          r"$log(var[mag])$"],titles_kwargs={"fontsize":12})
     fig.suptitle(band)
     fig.savefig(save_path)
 

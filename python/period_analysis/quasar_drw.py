@@ -139,7 +139,7 @@ class quasar_drw:
         # use most likely val as a initial guess
         nll = lambda *args: -lnlike(*args)
 #        signal = signal-np.mean(signal)
-        result = op.minimize(nll, [np.log(300.), np.log(0.0001), np.log(np.mean(signal)/300.)], args=(self.time, self.signal, self.error, self.redshift),method="Nelder-Mead")
+        result = op.minimize(nll, [np.log(300.), np.log(0.001), np.log(np.mean(signal)/300.)], args=(self.time, self.signal, self.error, self.redshift),method="Nelder-Mead")
         # "BFGS"
 
         tau_center = np.exp(result["x"][0])
@@ -157,11 +157,11 @@ class quasar_drw:
         ## modify this part if needed
 #        tau_center = 300
 #        c_center = 0.02
-        tau_sample = random_state.lognormal(mean=np.log(tau_center), sigma=1.0, size=nwalkers)
+        tau_sample = random_state.lognormal(mean=np.log(tau_center), sigma=0.2, size=nwalkers)
 #        tau_sample = np.random.lognormal(mean=np.log(tau_center), sigma=0.1, size=nwalkers)
-        c_sample   = random_state.lognormal(mean=np.log(c_center),   sigma=1.0, size=nwalkers)
+        c_sample   = random_state.lognormal(mean=np.log(c_center),   sigma=0.2, size=nwalkers)
 #        c_sample   = np.random.lognormal(mean=np.log(c_center),   sigma=0.1, size=nwalkers)
-        b_sample   = random_state.lognormal(mean=np.log(b_center),   sigma=1.0, size=nwalkers)
+        b_sample   = random_state.lognormal(mean=np.log(b_center),   sigma=0.2, size=nwalkers)
 #        b_sample   = np.random.lognormal(mean=np.log(b_center),   sigma=0.1, size=nwalkers)
 
         
@@ -408,8 +408,8 @@ def lnprior(theta, z, time):
 #    tau_fit,c_fit = np.exp(lntau),np.exp(lnc)
     
 #    if 1.0 < tau_fit*(1.0+z) < (np.max(time)-np.min(time)) and c_fit > 0.0 :
-#    if c_fit > 0.0 and b_fit*tau_fit < 30 and 1.0 < tau_fit < (np.max(time)-np.min(time)):
-    if c_fit> 0.0 and b_fit*tau_fit > 0.0001 and 1.0 < tau_fit < (np.max(time)-np.min(time)):
+    if c_fit > 0.0 and 10 < b_fit*tau_fit < 30 and 1.0 < tau_fit < (np.max(time)-np.min(time)): # mag
+#    if c_fit> 0.0 and b_fit*tau_fit > 0.0001 and 1.0 < tau_fit < (np.max(time)-np.min(time)):
         return 0.0
     else:
         return -np.inf
