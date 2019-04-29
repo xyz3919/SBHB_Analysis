@@ -10,6 +10,7 @@ from javelin.lcmodel import Cont_Model
 from gatspy import datasets, periodic
 import carmcmc as cm
 from quasar_drw import quasar_drw as qso_drw
+from quasar_drw import lnlike
 from plot import plot
 import useful_funcs
 
@@ -134,7 +135,7 @@ class analysis:
 
     def save_drw_parameters(self, tau, var, mu,filename):
 
-        # save DRW parameters (tai, variance and mean) 
+        # save DRW parameters (tau, variance and mean) 
 
         save_data = zip(tau,var,mu)
         np.savetxt(filename, save_data, delimiter=",", comments="",\
@@ -181,8 +182,14 @@ class analysis:
         #plot_posterior(np.exp(parameters_list),band,self.output_dir+name+\
         #               "/post_%s.png" % band)
         parameters_list_good = self.clean_parameters_list(parameters_list)
-        plot_posterior(np.exp(parameters_list_good),band,self.output_dir+name+\
-                       "/post_%s.png" % band)
+        theta = [parameters_list_good[:,0],parameters_list_good[:,1],\
+                 parameters_list_good[:,2]]
+        likelihood = []
+        for theta in parameters_list_good:
+            likelihood.append(lnlike(theta,lc.time,lc.signal,lc.error,z))
+        
+        plot_posterior(np.exp(parameters_list_good),likelihood,\
+                       band,self.output_dir+name+"/post_%s.png" % band)
 
         for i in range(draw_times):
             tau,c,b = np.exp(parameters_list_good[self.random_state.randint(\
@@ -447,7 +454,7 @@ class analysis:
         body1 = "\\begin{figure}[!bp]\n"+\
                 "\\begin{minipage}[b]{0.48\\textwidth}\n"+\
                 "\\includegraphics[width=\\textwidth]"+\
-                "{%s/periodogram_carma.png}\n"+\
+                "{%s/periodogram.png}\n"+\
                 "\\end{minipage}\n"+\
                 "\\hfill\n"+\
                 "\\begin{minipage}[b]{0.48\\textwidth}\n"+\
@@ -467,7 +474,7 @@ class analysis:
             for index, row in quasars_times.iterrows():
                 name = row["name"]
                 useful_funcs.create_dir(self.pdf_dir+name)
-                os.system("cp "+self.output_dir+name+"/periodogram_carma.png "+\
+                os.system("cp "+self.output_dir+name+"/periodogram.png "+\
                           self.pdf_dir+name)
                 os.system("cp "+self.output_dir+name+"/lightcurve.png "+\
                           self.pdf_dir+name)

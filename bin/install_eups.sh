@@ -12,13 +12,13 @@ then
 fi
 
 bin_path=$(dirname $(which install_eups.sh))
-echo export PATH=$bin_path$'/:$PATH' >>setup.sourceme
-echo export PYTHONPATH="${bin_path/bin/python}"$'/:$PYTHONPATH\n'>>setup.sourceme
+#echo export PATH=$bin_path$'/:$PATH' >>setup.sourceme
+#echo export PYTHONPATH="${bin_path/bin/python}"$'/:$PYTHONPATH\n'>>setup.sourceme
 
 cd $eups_dir
 
-curl -O http://desbuild.cosmology.illinois.edu/desdm_eupsinstall.py
-python desdm_eupsinstall.py
+#curl -O http://desbuild.cosmology.illinois.edu/desdm_eupsinstall.py
+#python desdm_eupsinstall.py
 
 source ./eups/desdm_eups_setup.sh
 

@@ -8,6 +8,7 @@ import os, subprocess
 from scipy.optimize import curve_fit
 import emcee
 import scipy.optimize as op
+from scipy.signal import medfilt 
 from astroML.time_series import generate_damped_RW
 from scipy.optimize import minimize, rosen, rosen_der
 from plot import plot
@@ -157,11 +158,13 @@ class quasar_drw:
         ## modify this part if needed
 #        tau_center = 300
 #        c_center = 0.02
-        tau_sample = random_state.lognormal(mean=np.log(tau_center), sigma=0.2, size=nwalkers)
+        tau_sample = random_state.lognormal(mean=np.log(tau_center), sigma=1, size=nwalkers)
 #        tau_sample = np.random.lognormal(mean=np.log(tau_center), sigma=0.1, size=nwalkers)
-        c_sample   = random_state.lognormal(mean=np.log(c_center),   sigma=0.2, size=nwalkers)
+        c_sample   = random_state.lognormal(mean=np.log(c_center),   sigma=1, size=nwalkers)
 #        c_sample   = np.random.lognormal(mean=np.log(c_center),   sigma=0.1, size=nwalkers)
-        b_sample   = random_state.lognormal(mean=np.log(b_center),   sigma=0.2, size=nwalkers)
+        b_sample   = random_state.normal(tau_center*b_center, 0.1,\
+                     size=nwalkers)/tau_sample
+        #random_state.lognormal(mean=np.log(b_center),   sigma=0.2, size=nwalkers)
 #        b_sample   = np.random.lognormal(mean=np.log(b_center),   sigma=0.1, size=nwalkers)
 
         
@@ -236,7 +239,21 @@ class quasar_drw:
         self.error  = error
     
     
-    def _no_outlier(self, sigma=5, iters=100):
+    def _mask_sigma_clip_moving_avg(self,signal,sigma_level=5):
+
+        mask = np.ones( len(signal) , dtype=bool)
+        outliers = True
+        while outliers:
+            sigma = np.std(signal[mask])
+            signal_smooth = medfilt(signal[mask],kernel_size=5)
+            mask_thistime = (abs(signal[mask] - signal_smooth) < \
+                             sigma*sigma_level)
+            if np.sum(~mask_thistime) == 0: outliers = False
+            else: mask[mask] = mask_thistime
+        return mask
+
+        
+    def _no_outlier(self, sigma=3, iters=100):
 
         #idx = ((np.abs(self.signal) < 100.) & (self.signal > 0.)) # for magnitude
         idx = (self.signal > 0.) # for flux
@@ -245,9 +262,11 @@ class quasar_drw:
         self.signal = self.signal[idx]
         self.error  = self.error[idx]
         
-        after_clip = sigma_clip(self.signal, sigma=sigma, iters=iters, cenfunc=median, copy=True)
-        
-        idx = ~(after_clip.mask)
+        #after_clip = sigma_clip(self.signal, sigma=sigma, iters=iters, cenfunc=median, copy=True)
+        #idx = ~(after_clip.mask)
+
+        idx = self._mask_sigma_clip_moving_avg(self.signal,sigma)
+
         self.time   = self.time[idx]
         self.signal = self.signal[idx]
         self.error  = self.error[idx]

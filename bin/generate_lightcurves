@@ -4,6 +4,7 @@ import timeit
 import numpy as np
 from lightcurve import main
 #from lightcurve import plot
+import os
 from lightcurve import query
 import useful_funcs
 import sys
@@ -85,6 +86,25 @@ def func(quasar):
 
             
             save_line = save_line+","+str(len(quasars_in_band))
+
+    # save combined lightcurves
+
+    
+    band_list = ["g","r","i","z"]
+    output_dir = lc.lc_dir+"combined/"
+    useful_funcs.create_dir(output_dir)
+
+    for band in band_list:
+        filenames = [lc_SDSS.save_dir+name+"/"+band+".csv",\
+                     lc.save_dir+name+"/"+band+".csv"]
+        with open(output_dir+band+"csv", 'w') as outfile:
+            for fname in filenames:
+                if os.path.isfile(fname):
+                    with open(fname) as infile:
+                        for line[1:] in infile:
+                            outfile.write(line)
+        
+
 
 
 

@@ -1,0 +1,127 @@
+#!/usr/bin/env python
+# 
+import os
+import numpy as np
+import pandas as pd
+import multiprocessing as mp
+import traceback
+import useful_funcs
+from period_analysis.quasar_drw import quasar_drw as qso_drw
+
+
+def download_S82_lightcurves():
+
+    print("-- Downloading the master file --")
+    os.system("wget http://faculty.washington.edu/ivezic/macleod/"+\
+              "qso_dr7/DB_QSO_S82.dat.gz")
+    os.system("gunzip DB_QSO_S82.dat.gz")
+
+    print("-- Downloading the lightcurves --")
+    os.system("wget http://faculty.washington.edu/ivezic/macleod/"+\
+              "qso_dr7/QSO_S82.tar.gz")
+    os.system("tar -xzf QSO_S82.tar.gz")
+
+def read_master_file():
+
+    filename = "DB_QSO_S82.dat"
+    dtype = [('ID','i4'),("RA",'f8'),("DEC",'f8'),\
+            ("SDR5ID","i4"),("M_i",'f8'),("M_i_corr",'f8'),("z","f8"),\
+            ("M_BH","f8"),("Lbol","f8"),("mag_u","f8"),\
+            ("mag_g","f8"),("mag_r","f8"),("mag_i","f8"),\
+            ("mag_z","f8"),("Au","f8")]
+    data_master = np.genfromtxt(filename,dtype=dtype,\
+                  comments="#")
+    return data_master
+
+def read_lightcurve(name):
+
+    filename = "QSO_S82/%s" % name
+    dtype = [("MJD_u","f8"),("mag_u","f8"),("mag_u_err","f8"),\
+             ("MJD_g","f8"),("mag_g","f8"),("mag_g_err","f8"),\
+             ("MJD_r","f8"),("mag_r","f8"),("mag_r_err","f8"),\
+             ("MJD_i","f8"),("mag_i","f8"),("mag_i_err","f8"),\
+             ("MJD_z","f8"),("mag_z","f8"),("mag_z_err","f8"),\
+             ("RA_median","f8"),("DEX_median","f8")]
+    data = np.genfromtxt(filename,dtype=dtype,comments="#")
+    return data
+
+def model_DRW_parameters(data,band,z,ID):
+
+    nwalkers = 200#500
+    burnin = 100#150
+    Nsteps = 200#500
+
+    lc = qso_drw(data["MJD_%s" % band],data["mag_%s" %band],\
+                 data["mag_%s_err" % band],z,preprocess=True)
+    time, signal, error = lc.get_lc()
+    samples =  lc.fit_drw_emcee(nwalkers=nwalkers, burnin=burnin,\
+                           Nstep=Nsteps)#,random_state=self.random_state)
+    parameters_list = samples[:, burnin:, :].reshape((-1, 3))
+    tau = np.exp(parameters_list[:,0])
+    c = np.exp(parameters_list[:,1])
+    b = np.exp(parameters_list[:,2])
+    var = tau*c/2
+    mu = tau*b
+    print("%s_%s.txt" %(ID,band))
+    save_drw_parameters(tau,var,mu,"post/post_%s_%s.txt" %(ID,band))
+
+def save_drw_parameters(tau,var,mu,filename):
+
+    save_data = zip(tau,var,mu)
+    np.savetxt(filename, save_data, delimiter=",", comments="",\
+               header="tau,var,mu")
+
+def generate_drw_parameters_plot(data_master):
+
+    tau_total = []
+    var_total = []
+    for row in data_master:
+        ID = row["ID"]
+        z = row["z"]
+        band = "g"
+        parameters = pd.read_csv("post/post_%s_%s.txt" % (ID,band),\
+                                 names= ["tau","var","mu"],skiprows=1)
+        median = np.median(parameters,axis=0)
+        median[0] = median[0]/(1+z)
+        median = np.log10(median)
+        tau_total.append(median[0])
+        var_total.append(median[1])
+    from period_analysis.plot import plot_drw_parameters
+    plot_drw_parameters(tau_total,var_total,band,"drw_parameters.png")
+
+def task(row):
+
+    ID = row["ID"]
+    band = "g"
+    z = row["z"]
+    data = read_lightcurve(ID)
+    try:
+        model_DRW_parameters(data,band,z,ID)
+
+    except Exception as e:
+        traceback.print_exc()
+        raise e
+
+
+if __name__ == "__main__":
+
+    band_list = ["u","g","r","i","z"]
+    #download_S82_lightcurves()
+    data_master = read_master_file()
+    useful_funcs.create_dir("post/")
+
+    '''
+    for row in data_master:
+        ID = row["ID"]
+        band = "g"
+        z = row["z"]
+        data = read_lightcurve(ID)
+        model_DRW_parameters(data,band,z,ID)
+    '''
+    #pool = mp.Pool(mp.cpu_count()*6/8)
+    #save_lines = pool.map(task,data_master)
+
+    generate_drw_parameters_plot(data_master)
+    
+
+    

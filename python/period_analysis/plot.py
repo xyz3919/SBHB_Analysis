@@ -122,7 +122,7 @@ class plot:
            bounday_psd_at_each__freq = [np.percentile(psd,percentile) for psd in psd_at_each__freq]
            ax.plot(_freq/365,bounday_psd_at_each__freq,"--",c="black",linewidth=0.5)
 
-    def plot_light_curve(self,time,signal,error,survey,band,yaxis="flux"):
+    def plot_light_curve(self,time,signal,error,survey,band,yaxis="mag"):
 
         if survey in self.fmt_list.keys() : fmt = self.fmt_list[survey]
         else : fmt = {"fmt":"x","markersize":5}
@@ -133,7 +133,6 @@ class plot:
         if bottom > np.min(signal)-0.5: bottom = np.min(signal)-0.5
         if top < np.max(signal)+0.5: top = np.max(signal)+0.5
         ax.set_ylim(bottom,top)
-        print survey,min(time),max(signal)
         if band == "z":
             ax.set_xlabel("MJD")
         if yaxis== "mag":
@@ -181,7 +180,7 @@ class plot:
         plt.close(self.f)
 
 
-def plot_posterior(samples,band,save_path):
+def plot_posterior(samples,likelihood,band,save_path):
 
     samples[:,1] = samples[:,1]*samples[:,0]/2
     samples[:,2] = samples[:,2]*samples[:,0]
@@ -192,27 +191,28 @@ def plot_posterior(samples,band,save_path):
     axrange = []
     sigma = np.std(samples,axis=0)
     median = np.median(samples,axis=0)
+    maxlike = samples[likelihood == np.max(likelihood)][0]
 #    for i in range(ndim):
 #        axrange.append((median[i]-3*sigma[i],median[i]+3*sigma[i]))
     fig = corner.corner(samples,labels=[r"$log(\tau[days])$",\
                         r"$log(var[mag])$",r"$mean[mag]$"],\
                         quantiles=[0.16, 0.5, 0.84],\
                         show_titles=True, title_kwargs={"fontsize": 12},\
-                        plot_datapoints=False)
+                        plot_datapoints=False,levels=(1-np.exp(-0.5),))
                         #range = axrange)
     axes = np.array(fig.axes).reshape((ndim, ndim))
 #    value = np.median(samples, axis=0)
     # for the diagonal histograms
     for i in range(ndim):
         ax = axes[i, i]
-        ax.axvline(median[i], color="g")
+        ax.axvline(maxlike[i], color="g")
     # for the 2-D posterior contours
     for yi in range(ndim):
         for xi in range(yi):
             ax = axes[yi, xi]
-            ax.axvline(median[xi], color="g")
-            ax.axhline(median[yi], color="g")
-            ax.plot(median[xi], median[yi], "sg")
+            ax.axvline(maxlike[xi], color="g")
+            ax.axhline(maxlike[yi], color="g")
+            ax.plot(maxlike[xi], maxlike[yi], "sg")
     fig.suptitle(band)
     fig.savefig(save_path)
 
@@ -255,9 +255,15 @@ def plot_posterior_carma(samples,band,save_path):
 def plot_drw_parameters(tau,sigma,band,save_path):
 
     import corner
-    samples = np.array([tau,sigma]).T
-    fig = corner.corner(samples,labels=[r"$log(\tau[days])$",\
-          r"$log(var[mag])$"],titles_kwargs={"fontsize":12})
+    #samples = np.array([sigma,tau]).T
+    #fig = corner.corner(samples,labels=[r"$log(var[mag])$",\
+    #      r"$log(\tau[day])$"],titles_kwargs={"fontsize":12})
+    SF = sigma+np.log10(np.sqrt(2))
+    samples = np.array([SF,tau]).T
+    fig = corner.corner(samples,labels=[r"$log(SF(mag))$",\
+          r"$log(\tau[days])$"],titles_kwargs={"fontsize":12},\
+          range=[(-2.0,0.),(0.,4.)],\
+          quantiles=[0.16, 0.5, 0.84],show_titles=True)
     fig.suptitle(band)
     fig.savefig(save_path)
 
