@@ -359,6 +359,8 @@ class analysis:
                                          self.output_dir+name+\
                                          "/periodogram_"+band+".csv")
         lightcurves_total = np.concatenate(lightcurves_total, axis=1)
+        np.savetxt(self.output_dir+name+"/lightcurve_total.csv", , delimiter=",", \
+                   comments="",header="time,signal,error,band")
         self.do_multi_band_periodogram(lightcurves_total,\
                                        multi_periodogram)
 
@@ -461,6 +463,8 @@ class analysis:
                 "\\includegraphics[width=\\textwidth,right]"+\
                 "{%s/lightcurve.png}\n"+\
                 "\\end{minipage}\n"+\
+                "\\includegraphics[width=\\textwidth]"+\
+                "{%s/ACF.png}\n"+\
                 "\\end{figure}\n"
         clearpage = "\\clearpage\n"
         footer = "\\end{document}\n"
@@ -478,7 +482,9 @@ class analysis:
                           self.pdf_dir+name)
                 os.system("cp "+self.output_dir+name+"/lightcurve.png "+\
                           self.pdf_dir+name)
-                f.write(body1 % (name,name))
+                os.system("cp "+self.lc_dir+"/combined/"+name+"/ACF.png "+\
+                          self.pdf_dir+name)
+                f.write(body1 % (name,name,name))
             f.write(clearpage)
         f.write(footer)
         f.close()

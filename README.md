@@ -78,6 +78,11 @@ periodogram_stat
 ```
 Check "statistics/strong_candidates.csv" to see the strong candidates.
 
+## Autocorrelation function (ACF)
+
+We use the z-transformed discrete correlation function (ZCDF) code to perform ACF ([The website](https://webhome.weizmann.ac.il/home/tal/zdcf2.html)).
+
+
 
 
 

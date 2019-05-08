@@ -130,15 +130,28 @@ class plot:
         ax.errorbar(time,signal,yerr=error,label=band,c=self.color_list[band],\
                     **fmt)
         bottom,top = ax.get_ylim()
-        if bottom > np.min(signal)-0.5: bottom = np.min(signal)-0.5
-        if top < np.max(signal)+0.5: top = np.max(signal)+0.5
+        if bottom > np.min(signal)-0.1: bottom = np.min(signal)-0.1
+        if top < np.max(signal)+0.1: top = np.max(signal)+0.1
         ax.set_ylim(bottom,top)
         if band == "z":
             ax.set_xlabel("MJD")
         if yaxis== "mag":
             ax.set_ylabel("Magnitude") 
+            bottom,top = ax.get_ylim()
+            if top > bottom: 
+                ax.set_ylim(ax.get_ylim()[::-1])
+                bottom,top = ax.get_ylim()
+            if bottom < np.max(signal)+0.1: bottom = np.max(signal+0.1)
+            if top > np.min(signal)-0.1: top = np.min(signal)-0.1
+            ax.set_ylim(bottom,top)
         else:
             ax.set_ylabel("Flux(nanomaggy)")
+            bottom,top = ax.get_ylim()
+            if bottom > np.min(signal)-0.1: bottom = np.min(signal)-0.1
+            if top < np.max(signal)+0.1: top = np.max(signal)+0.1
+            ax.set_ylim(bottom,top)
+
+
         ax.annotate(band, xy=(0.98, 0.9),xycoords='axes fraction',\
                     size=12, ha='right', va='top', color=self.color_list[band],\
                     bbox=dict(boxstyle='round', fc='w'))

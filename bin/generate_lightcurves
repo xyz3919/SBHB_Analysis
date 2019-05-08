@@ -93,16 +93,18 @@ def func(quasar):
     band_list = ["g","r","i","z"]
     output_dir = lc.lc_dir+"combined/"
     useful_funcs.create_dir(output_dir)
+    useful_funcs.create_dir(output_dir+name)
 
     for band in band_list:
         filenames = [lc_SDSS.save_dir+name+"/"+band+".csv",\
                      lc.save_dir+name+"/"+band+".csv"]
-        with open(output_dir+band+"csv", 'w') as outfile:
+        with open(output_dir+name+"/"+band+".csv", 'w') as outfile:
             for fname in filenames:
                 if os.path.isfile(fname):
                     with open(fname) as infile:
-                        for line[1:] in infile:
-                            outfile.write(line)
+                        for line in infile.readlines()[1:]:
+                            newline = line.replace(","," ")
+                            outfile.write(newline)
         
 
 

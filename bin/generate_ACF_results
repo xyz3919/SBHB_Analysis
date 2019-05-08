@@ -1,0 +1,20 @@
+#! /bin/bash -f  
+
+# run the autocorrelation function (ACF)
+#
+
+cd lightcurves/combined
+names=`ls`
+for name in $names;
+do
+#    cd $name
+    #for band in "g" "r" "i" "z"
+    #do
+    #    echo $band | run_ACF
+#	rm $band.lc1 $band.lc2 
+#    done
+#    cd ..
+    plot_ACF $name
+done
+
+

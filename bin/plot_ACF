@@ -1,0 +1,66 @@
+#!/usr/bin/env python
+# 
+import numpy as np
+import useful_funcs
+from matplotlib import pyplot as plt
+import sys
+import os
+import scipy.special
+
+
+def plot_ACF(ax,x,xerr_l,xerr_u,y,yerr_l,yerr_u,boundary_u,boundary_l,band):
+
+    color_list = {"g":"g","r":"orange",\
+                  "i":"brown","z":"purple","total":"black"}
+    ax.errorbar(x,y,yerr=[yerr_l,yerr_u],xerr=[xerr_l,xerr_u],\
+                fmt=".",capsize=0.5,color=color_list[band],\
+                label=band,elinewidth=0.2)
+    ax.plot(x,boundary_u,linestyle='dashed',color=color_list[band])
+    ax.plot(x,boundary_l,linestyle='dashed',color=color_list[band])
+    ax.set_ylim(-1,1)
+
+def confidence_level(N,level=0.997):
+
+    sigma = scipy.special.erfinv(1.-2.*(1-level))*np.sqrt(2)
+    R_p = (-1+sigma*np.sqrt(N-2))/(N-1)
+    R_n = (-1-sigma*np.sqrt(N-2))/(N-1)
+
+    return R_p,R_n
+
+def main(name):
+
+    f,ax = plt.subplots(1,1,figsize=(12,4))
+    band_list = ["g","r","i","z"]
+    for band in band_list:
+        if os.path.exists(name+"/"+band+".dcf"):
+            data = np.genfromtxt(name+"/"+band+".dcf",dtype=float)
+            time = data[:,0]/365.
+            xerr_l = data[:,1]/365.
+            xerr_u = data[:,2]/365.
+            power = data[:,3]
+            yerr_l = data[:,4]
+            yerr_u = data[:,5]
+            N = data[:,6]
+            boundary_u,boundary_l =  confidence_level(N,0.997)
+
+            plot_ACF(ax,time,xerr_l,xerr_u,power,yerr_l,yerr_u,\
+                     boundary_u,boundary_l,band)
+
+    ax.set_xlabel("time(yr)")
+    ax.set_ylabel("ACF")
+    #plt.xscale("log")
+    ax.legend()
+    f.tight_layout(rect=[0, 0.03, 1, 0.95])
+    f.suptitle(name)
+    f.savefig(name+"/ACF.png",dpi=300)
+    plt.close(f)
+
+    
+if __name__ == "__main__":
+
+    name = sys.argv[1]
+    print "-- %s --" % name
+    main(name)
+
+
+    
