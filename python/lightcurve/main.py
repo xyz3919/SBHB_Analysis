@@ -1,10 +1,10 @@
 import os
-import sys
 import numpy as np
-from astropy.io import fits
+from astropy.io import fits,ascii
 from astropy.coordinates import SkyCoord
 from astropy import units as u
 import query 
+import query_PS # get PanSTARRS lightcurves
 import useful_funcs
 import math
 from math import log10, radians, pi,cos,sin
@@ -12,21 +12,31 @@ import plot
 
 class lc:
 
-    def __init__(self,save_dir):
+    def __init__(self):
         
         self.lc_dir = "lightcurves/"
         useful_funcs.create_dir(self.lc_dir)
-        self.query    = query.query_DES()
-        self.query_S82 = query.Stripe82()
-        self.query_SDSS = query.query_SDSS()
-        self.save_dir = self.lc_dir+save_dir
-        useful_funcs.create_dir(self.save_dir)
+        self.query      = query.query_DES() # to get DES lightcurves
+        self.query_S82  = query.Stripe82() # get SDSS S82 lightcurves
+        self.query_SDSS = query.query_SDSS() # get SDSS spectra
+        self.save_dir = self.lc_dir+"DES/"
+        #useful_funcs.create_dir(self.save_dir)
         self.quasar_catalog_dir = "catalog/"
         self.quasar_catalog = "DR14+DR7+OzDES+Milliq_S1S2.txt"
         self.lc_info_file = "lc_info.csv"
-        self.log = "log"
+        self.log = "log_lightcurves"
         self.band_list = ["g","r","i","z"]
 
+    ###########
+    # General #
+    ###########
+
+    def set_output_dir(self,output_dir):
+
+        # set the output dir (e.g. DES/, SDSS/)
+
+        self.save_dir = output_dir
+        useful_funcs.create_dir(self.save_dir)
 
     def load_quasar_catalog(self):
 
@@ -45,20 +55,226 @@ class lc:
                  ('spread_model_err_i', '<f8')]
         quasars = np.genfromtxt(self.quasar_catalog_dir+self.quasar_catalog,\
                   delimiter=",",dtype=dtype)
-
         quasars.sort(order="ra")
         return quasars
+
+    def fill_coadd_mag_with_median_mag(self,quasar_info,total_quasars):
+
+        # get median magnitude for the quasar with wierd/without coadd mag 
+
+        band = "i"
+        if not ((quasar_info["mag_psf_%s" % band] > 0) & \
+                (quasar_info["mag_psf_%s" % band] < 40 )):
+            mag = np.median(total_quasars[total_quasars["band"]==\
+                            band]["mag_psf"])
+            quasar_info["mag_psf_%s" % band] = mag
+        return quasar_info
 
     def write_header(self,quasar_catalog):
 
         f = open(self.lc_dir+self.lc_info_file,"w")
         headers = ",".join(quasar_catalog.dtype.names)
         f.write("name,"+headers+",N_DES_g,N_DES_r,N_DES_i,N_DES_z")
-        f.write(",N_SDSS_g,N_SDSS_r,N_SDSS_i,N_SDSS_z\n")
+        f.write(",N_SDSS_g,N_SDSS_r,N_SDSS_i,N_SDSS_z,N_PS_g,N_PS_r")
+        f.write(",N_PS_i,N_PS_z\n")
         f.close()
 
+
+    ############
+    # DES part #
+    ############
+
+    def generate_finalcut_lightcurve(self,quasar):
+
+        # obtain the information at given position of the quasar.
+
+        matched_quasars = np.array([],dtype=self.query.dtype_single)
+        objects = self.query.get_nearby_single_epoch_objects(\
+                  quasar["ra"],quasar["dec"],10)
+        if objects is None: return matched_quasars
+        coor_quasar = SkyCoord(ra=quasar["ra"]*u.degree,\
+                               dec=quasar["dec"]*u.degree)
+        coor_objects = SkyCoord(ra=objects["ra"]*u.degree,\
+                                dec=objects["dec"]*u.degree)
+        dist = coor_quasar.separation(coor_objects)
+        matched_quasars = objects[dist<1.0*u.arcsec ]
+        clean_objects = matched_quasars[(matched_quasars["flux_psf"]>0) &\
+                                   (matched_quasars["flux_psf"]<10**10) &\
+                                   (matched_quasars["mjd_obs"]>20000)&\
+                                   (matched_quasars["mjd_obs"]<90000)]
+        return clean_objects
+
+
+    def convert_flux_to_mag(self,total_quasars):
+
+        # convert flux to magnitude
+
+        total_quasars["flux_err_psf"] = total_quasars["flux_err_psf"]*1.09/\
+                                        total_quasars["flux_psf"]
+        total_quasars["flux_psf"] = 22.5-2.5*np.log10(total_quasars["flux_psf"])
+        total_quasars["flux_err_auto"] = total_quasars["flux_err_auto"]*1.09/\
+                                        total_quasars["flux_auto"]
+        total_quasars["flux_auto"] = 22.5-\
+                                    2.5*np.log10(total_quasars["flux_auto"])
+        total_quasars.dtype.names = tuple([w.replace("flux","mag") for w \
+                                          in total_quasars.dtype.names])
+
+        return total_quasars
+
+    def save_DES_lightcurves(self,total_quasars,save_line):
+
+        # save DES lightcurve in each band and record number of data points
+
+        for band in self.band_list:
+            quasars_in_band = total_quasars[total_quasars["band"]==band]
+            if len(quasars_in_band) == 0 :
+                print("No data found in "+band+" !")
+                save_line = save_line+",0"
+            else:
+                np.savetxt(self.save_dir+"/"+band+".csv",\
+                           quasars_in_band[["mjd_obs","mag_psf",\
+                           "mag_err_psf"]],fmt="%f,%f,%f",comments='',\
+                           header="mjd_obs,mag_psf,mag_err_psf")
+                save_line = save_line+","+str(len(quasars_in_band))
+
+        return save_line
+
+    #############
+    # SDSS part #
+    #############
+
+    def generate_SDSS_lightcurves(self,quasar):
+
+        # make the SDSS light curves from querying the database
+
+        dtype_SDSS = [("mjd_obs",float),("mag_psf",float),\
+                      ("mag_err_psf",float),("band","|S1")]
+        matched_quasars = np.array([],dtype=dtype_SDSS)
+        objects = self.query_S82.q(quasar["ra"],quasar["dec"])
+        if objects is None: return matched_quasars
+        for band in self.band_list:
+            objects_band = np.array(map(tuple,[list(row) + [band] \
+                           for row in objects[["mjd_"+band,"mag_psf_"+band,\
+                           "mag_err_psf_"+band]]]),dtype=dtype_SDSS)
+            clean_objects = objects_band[(objects_band["mag_psf"]<30) &\
+                                         (objects_band["mag_psf"]>10) &\
+                                         (objects_band["mjd_obs"]>10000)&\
+                                         (objects_band["mjd_obs"]<80000)]
+            matched_quasars = np.append(matched_quasars,clean_objects)
+
+        return matched_quasars
+
+    def save_SDSS_lightcurves(self,SDSS_quasars,save_line,mag_diff=None):
+
+        # save the SDSS light curves into csv file
+
+        for band in self.band_list:
+            quasars_in_band = SDSS_quasars[SDSS_quasars["band"]==band]
+            if len(quasars_in_band) == 0 :
+                print "No data found in "+band+" !"
+                save_line = save_line+",0"
+            else:
+                save_line = save_line+","+str(len(quasars_in_band))
+                np.savetxt(self.save_dir+"/"+band+".csv",\
+                           quasars_in_band[["mjd_obs","mag_psf",\
+                           "mag_err_psf"]],fmt="%f,%f,%f",comments='',\
+                           header="mjd_obs,mag_psf,mag_err_psf")
+                if mag_diff is not None:
+                    corr_dir = self.save_dir.replace("SDSS", "SDSS_corr")
+                    useful_funcs.create_dir(corr_dir)
+                    quasars_in_band["mag_psf"] = quasars_in_band["mag_psf"]+\
+                                                 mag_diff[band]
+                    np.savetxt(corr_dir+"/"+band+".csv",\
+                               quasars_in_band[["mjd_obs","mag_psf",\
+                               "mag_err_psf"]],fmt="%f,%f,%f",comments='',\
+                               header="mjd_obs,mag_psf,mag_err_psf")
+        return save_line
+
+    #################
+    # PanSTARRS DR2 #
+    #################
+
+    def generate_and_save_PS_lightcurves(self,quasar,save_line):
+
+        # make and save PanSTARRS light curves
+
+        dcolumns = ("""objID,detectID,filterID,obsTime,ra,dec,psfFlux,psfFluxErr,psfMajorFWHM,psfMinorFWHM,psfQfPerfect,apFlux,apFluxErr,infoFlag,infoFlag2,infoFlag3""").split(',')
+        dresults = query_PS.ps1cone(quasar["ra"],quasar["dec"],2./3600.,\
+                   table='detection',release='dr2',columns=dcolumns)
+        dtab = query_PS.addfilter(ascii.read(dresults))
+        dtab.sort('obsTime')
+
+        # save light curves
+
+        for band in self.band_list:
+            dtab_band = dtab[dtab['filter']==band]
+            time = dtab_band['obsTime']
+            mag = -2.5*np.log10(dtab_band['psfFlux']) + 8.90
+            mag_error = dtab_band['psfFluxErr']/dtab_band['psfFlux']*1.09
+            signal = 10**((22.5-mag)/2.5)
+            error = mag_error*signal/1.09
+            if not len(dtab_band) > 1:
+                print ("0 data points in Panstarrs "+band+" band !!")
+                save_line = save_line+",0"
+            else:
+                save_line = save_line+","+str(len(dtab_band))
+                np.savetxt(self.save_dir+"/"+band+".csv",\
+                           np.array([time,mag,mag_error]).T,\
+                           fmt="%f,%f,%f",comments='',\
+                           header="mjd_obs,mag_psf,mag_err_psf")
+
+        return save_line
+
+
+
+############################################################################
+    ##################
+    # Redudant Funcs #
+    ##################
+
+    def generate_firstcut_lightcurve(self,quasar,year):
+
+        tag = year+"_FIRSTCUT"
+        # get magnitude of reference sources from coadd
+        final_list = np.array([],dtype=self.query.dtype_single)
+        coadd_data = self.query.get_nearby_coadd_objects(quasar["ra"],\
+                     quasar["dec"],10*60)
+        if coadd_data is None: return final_list
+        useful_funcs.print_and_write(self.log,"Nearby Coadd objects:"+\
+                                     str(len(coadd_data)))
+        # get list of images
+        filename_list = self.query.get_filename_list_from_tag(quasar["ra"],\
+                        quasar["dec"],tag)
+        if filename_list is None: return final_list
+        filename_list.sort(order="id")
+        filename_list = filename_list[::-1]
+        expnums,idx_clean = np.unique(filename_list["expnum"],return_index=True)
+        filename_list_clean = filename_list[idx_clean]
+        # get magnitude of quasar in each image
+        N = 1
+        final_list = np.array([],dtype=self.query.dtype_single)
+        for filename in filename_list_clean["filename"]:
+            print filename
+            data = self.query.get_firstcut_objects_from_filename(filename,tag,star=False)
+            band = filename.split("_")[1]
+            zeropoint,zeropoint_rms = self.get_zeropoint(filename,tag,coadd_data,band)
+            matched_quasar = self.get_target_quasar(quasar["ra"],quasar["dec"],\
+                                                    data)
+            if (zeropoint is None) or (zeropoint_rms is None):
+                useful_funcs.print_and_write(self.log,"No zeropoint !!")
+            elif len(matched_quasar) == 0:
+                useful_funcs.print_and_write(self.log,"Quasar not found !!")
+            else:
+                quasar_cal = self.calibrate_mag(matched_quasar,zeropoint,zeropoint_rms)
+                final_list = np.append(final_list,quasar_cal)
+        clean_objects = final_list[(final_list["flux_psf"]>0) &\
+                                   (final_list["flux_psf"]<10**10) &\
+                                   (final_list["mjd_obs"]>20000)&\
+                                   (final_list["mjd_obs"]<90000)]
+        return clean_objects
+
     def get_zeropoint(self,filename,tag,data_coadd,band):
-        
+
         data = self.query.get_firstcut_objects_from_filename(filename,tag,star=True)
         mag_psf = -2.5*np.log10(data["flux_psf"])
         data_clean = data[(mag_psf< 99) & (mag_psf> -99)]
@@ -105,100 +321,7 @@ class lc:
         quasar["flux_auto"] = quasar["flux_auto"]*10**(-0.4*zeropoint+9)
         return quasar
 
-
-    def generate_finalcut_lightcurve(self,quasar):
-
-        matched_quasars = np.array([],dtype=self.query.dtype_single)
-        objects = self.query.get_nearby_single_epoch_objects(\
-                  quasar["ra"],quasar["dec"],10)
-        if objects is None: return matched_quasars
-        coor_quasar = SkyCoord(ra=quasar["ra"]*u.degree,\
-                               dec=quasar["dec"]*u.degree)
-        coor_objects = SkyCoord(ra=objects["ra"]*u.degree,\
-                                dec=objects["dec"]*u.degree)
-        dist = coor_quasar.separation(coor_objects)
-        matched_quasars = objects[dist<1.0*u.arcsec ]
-        clean_objects = matched_quasars[(matched_quasars["flux_psf"]>0) &\
-                                   (matched_quasars["flux_psf"]<10**10) &\
-                                   (matched_quasars["mjd_obs"]>20000)&\
-                                   (matched_quasars["mjd_obs"]<90000)]
-        return clean_objects
-
-
-    def generate_firstcut_lightcurve(self,quasar,year):
-
-        tag = year+"_FIRSTCUT"
-        # get magnitude of reference sources from coadd
-        final_list = np.array([],dtype=self.query.dtype_single)
-        coadd_data = self.query.get_nearby_coadd_objects(quasar["ra"],\
-                     quasar["dec"],10*60)
-        if coadd_data is None: return final_list
-        useful_funcs.print_and_write(self.log,"Nearby Coadd objects:"+\
-                                     str(len(coadd_data)))
-        # get list of images
-        filename_list = self.query.get_filename_list_from_tag(quasar["ra"],\
-                        quasar["dec"],tag)
-        if filename_list is None: return final_list
-        filename_list.sort(order="id")
-        filename_list = filename_list[::-1]
-        expnums,idx_clean = np.unique(filename_list["expnum"],return_index=True)
-        filename_list_clean = filename_list[idx_clean]
-        # get magnitude of quasar in each image
-        N = 1
-        final_list = np.array([],dtype=self.query.dtype_single)
-        for filename in filename_list_clean["filename"]:
-            print filename
-            data = self.query.get_firstcut_objects_from_filename(filename,tag,star=False)
-            band = filename.split("_")[1]
-            zeropoint,zeropoint_rms = self.get_zeropoint(filename,tag,coadd_data,band)
-            matched_quasar = self.get_target_quasar(quasar["ra"],quasar["dec"],\
-                                                    data)
-            if (zeropoint is None) or (zeropoint_rms is None):
-                useful_funcs.print_and_write(self.log,"No zeropoint !!")
-            elif len(matched_quasar) == 0:
-                useful_funcs.print_and_write(self.log,"Quasar not found !!")
-            else:
-                quasar_cal = self.calibrate_mag(matched_quasar,zeropoint,zeropoint_rms)
-                final_list = np.append(final_list,quasar_cal)
-        clean_objects = final_list[(final_list["flux_psf"]>0) &\
-                                   (final_list["flux_psf"]<10**10) &\
-                                   (final_list["mjd_obs"]>20000)&\
-                                   (final_list["mjd_obs"]<90000)]
-        return clean_objects
-
-    def convert_flux_to_mag(self,total_quasars):
-
-        total_quasars["flux_err_psf"] = total_quasars["flux_err_psf"]*1.09/\
-                                        total_quasars["flux_psf"]
-        total_quasars["flux_psf"] = 22.5-2.5*np.log10(total_quasars["flux_psf"])
-        total_quasars["flux_err_auto"] = total_quasars["flux_err_auto"]*1.09/\
-                                        total_quasars["flux_auto"]
-        total_quasars["flux_auto"] = 22.5-\
-                                    2.5*np.log10(total_quasars["flux_auto"])
-        total_quasars.dtype.names = tuple([w.replace("flux","mag") for w \
-                                          in total_quasars.dtype.names])
-
-        return total_quasars
-
-
-    def generate_SDSS_lightcurve(self,quasar):
-
-        dtype_SDSS = [("mjd_obs",float),("mag_psf",float),\
-                      ("mag_err_psf",float),("band","|S1")]
-        matched_quasars = np.array([],dtype=dtype_SDSS)
-        objects = self.query_S82.q(quasar["ra"],quasar["dec"])
-        if objects is None: return matched_quasars
-        for band in self.band_list:
-            objects_band = np.array(map(tuple,[list(row) + [band] \
-                           for row in objects[["mjd_"+band,"mag_psf_"+band,\
-                           "mag_err_psf_"+band]]]),dtype=dtype_SDSS)
-            clean_objects = objects_band[(objects_band["mag_psf"]<30) &\
-                                         (objects_band["mag_psf"]>10) &\
-                                         (objects_band["mjd_obs"]>10000)&\
-                                         (objects_band["mjd_obs"]<80000)]
-            matched_quasars = np.append(matched_quasars,clean_objects)
-
-        return matched_quasars
+############################################################################
 
 class spectra:
 
@@ -339,7 +462,6 @@ class lc_single:
         quasars.dtype.names = tuple([w.replace("flux","mag") for w \
                                      in quasars.dtype.names])
         return quasars
-
 
 
 

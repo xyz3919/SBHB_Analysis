@@ -162,7 +162,7 @@ class analysis:
 
         psd_mock_all = []
         if self.test is True: 
-            nwalkers,burnin,Nsteps,draw_times = 100,50,100,10
+            nwalkers,burnin,Nsteps,draw_times = 100,50,100,100
         else:
             nwalkers = 500
             burnin = 150
@@ -359,7 +359,8 @@ class analysis:
                                          self.output_dir+name+\
                                          "/periodogram_"+band+".csv")
         lightcurves_total = np.concatenate(lightcurves_total, axis=1)
-        np.savetxt(self.output_dir+name+"/lightcurve_total.csv", , delimiter=",", \
+        np.savetxt(self.output_dir+name+"/lightcurve_total.csv",\
+                   lightcurves_total, delimiter=",", \
                    comments="",header="time,signal,error,band")
         self.do_multi_band_periodogram(lightcurves_total,\
                                        multi_periodogram)
