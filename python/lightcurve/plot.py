@@ -17,9 +17,17 @@ class plot:
         self.f,self.axes  = plt.subplots(cols, rows,**args)
         self.color_list = {"g":"g","r":"orange",\
                            "i":"brown","z":"purple"}
+        if cols==4 and rows ==1:
+            self.ax_list = {"g":self.axes[0],"r":self.axes[1],\
+                            "i":self.axes[2],"z":self.axes[3]}
         if cols == 2 and rows == 2:
             self.ax_list = {"g":self.axes[0,0],"r":self.axes[0,1],\
                             "i":self.axes[1,0],"z":self.axes[1,1]}
+        self.fmt_list = {"DES":{"fmt":"o","markersize":5},\
+                         "SDSS_corr":{"fmt":"s","markersize":5},\
+                         "PS":{"fmt":"^","markersize":5},\
+                         "ZTF":{"fmt":"x","markersize":5}
+                        }
 
     def plot(self,x,y,band,log=False):
 
@@ -98,6 +106,42 @@ class plot:
         print("Saving "+dir_output+name)
         self.f.savefig(dir_output+name,dpi=150)
         plt.close()
+
+    ################
+    # light curves #
+    ################
+
+    def plot_light_curve(self,time,signal,error,survey,band,yaxis="mag"):
+
+        if survey in self.fmt_list.keys() : fmt = self.fmt_list[survey]
+        else : fmt = {"fmt":"x","markersize":5}
+        ax = self.ax_list[band]
+        ax.errorbar(time,signal,yerr=error,label=band,c=self.color_list[band],\
+                    **fmt)
+        bottom,top = ax.get_ylim()
+        #if bottom > np.min(signal)-0.1: bottom = np.min(signal)-0.1
+        #if top < np.max(signal)+0.1: top = np.max(signal)+0.1
+        #ax.set_ylim(bottom,top)
+        if band == "z":
+            ax.set_xlabel("MJD")
+        if yaxis== "mag":
+            ax.set_ylabel("Magnitude") 
+            bottom,top = ax.get_ylim()
+            if top > bottom: 
+                ax.set_ylim(ax.get_ylim()[::-1])
+                bottom,top = ax.get_ylim()
+            if bottom < np.max(signal): bottom = np.max(signal)+0.1
+            if top > np.min(signal): top = np.min(signal)-0.1
+            ax.set_ylim(bottom,top)
+        else:
+            ax.set_ylabel("Flux(nanomaggy)")
+            bottom,top = ax.get_ylim()
+            if bottom > np.min(signal)-0.1: bottom = np.min(signal)-0.1
+            if top < np.max(signal)+0.1: top = np.max(signal)+0.1
+            ax.set_ylim(bottom,top)
+        ax.annotate(band, xy=(0.98, 0.9),xycoords='axes fraction',\
+                    size=12, ha='right', va='top', color=self.color_list[band],\
+                    bbox=dict(boxstyle='round', fc='w'))
 
 def plot_magnitude_comparison(x,y,out_dir,mjd):
 

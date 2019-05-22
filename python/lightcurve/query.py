@@ -593,3 +593,27 @@ class query_panstarrs():
             raise ValueError("Unknown object '{}'".format(name))
         return (objRa, objDec)
 
+#############
+# query ZTF #
+#############
+
+class query_ZTF:
+
+    def __init__(self):
+
+        self.band_list = ["g","r"]
+        self.band_name = {"g":"zg","r":"zr"}
+
+    def get_lightcurve(self,ra,dec,size):
+
+        name = "temp_%s.tbl" % ra
+        url = 'wget "https://irsa.ipac.caltech.edu/cgi-bin/ZTF/'+\
+              'nph_light_curves?POS=CIRCLE+%f+%f+%f&NOBS_MIN=3&'+\
+              'BAD_CATFLAGS_MASK=32768&FORMAT=csv" -O %s'
+        os.system(url % (ra,dec,size,name))
+        if not os.path.exists(name):
+            return None
+        data = np.genfromtxt(name,delimiter=",",names=True,dtype=None)
+        os.system("rm %s" % name)
+        return data
+

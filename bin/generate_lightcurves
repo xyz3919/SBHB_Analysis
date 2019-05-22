@@ -7,14 +7,14 @@ from lightcurve import query
 import useful_funcs
 import sys
 import multiprocessing as mp
+import traceback
 
-
-def func(quasar):
+def main_steps(quasar):
 
     lc = main.lc()
-    save_line = ""
+    #save_line = ""
     name = useful_funcs.degtohexname(quasar["ra"],quasar["dec"])
-    save_line = save_line+name
+    lc.save_line = lc.save_line+name
     useful_funcs.print_and_write(lc.log,"- "+name+"\n")
 
     #####################
@@ -33,10 +33,10 @@ def func(quasar):
     quasar = lc.fill_coadd_mag_with_median_mag(quasar,total_quasars)
 
     # record the info for the quasar
-    save_line = save_line+","+",".join(map(str,quasar))
+    lc.save_line = lc.save_line+","+",".join(map(str,quasar))
 
     # save DES data
-    save_line = lc.save_DES_lightcurves(total_quasars,save_line)
+    lc.save_DES_lightcurves(total_quasars)
 
     #####################
     # SDSS light curves #
@@ -52,14 +52,27 @@ def func(quasar):
     spec.get_SDSS_spectrum(quasar["ra"],quasar["dec"])
     mag_diff = spec.mag_SDSS_to_DES(name)
 
-    save_line = lc.save_SDSS_lightcurves(SDSS_quasars,save_line,mag_diff)
+    lc.save_SDSS_lightcurves(SDSS_quasars,mag_diff)
 
     #################
     # PanSTARRs DR2 #
     #################
 
     lc.set_output_dir(lc.lc_dir+"PS/"+name)
-    save_line = lc.generate_and_save_PS_lightcurves(quasar,save_line)
+    lc.generate_and_save_PS_lightcurves(quasar)
+
+    ###########
+    # ZTF DR1 #
+    ###########
+
+    lc.set_output_dir(lc.lc_dir+"ZTF/"+name)
+    lc.generate_and_save_ZTF_lightcurves(quasar)
+
+    #############
+    # save info #
+    #############
+
+    lc.save_information()
 
     '''
     # save combined lightcurves
@@ -82,25 +95,39 @@ def func(quasar):
                             outfile.write(newline)
     ''' 
 
-    return save_line
+    return 0
+
+def func(quasar):
+
+    # functions used to feed into multiprocessing 
+
+    try:
+        main_steps(quasar)
+
+    except Exception as e:
+        traceback.print_exc()
+        print quasar
+        raise e
+
+    return 0
 
 if __name__ == '__main__':
 
     start = timeit.default_timer()
     lc = main.lc()
+
     
     quasar_catalog = lc.load_quasar_catalog()
-    pool = mp.Pool(mp.cpu_count()*3/4)
-    save_lines = pool.map(func,quasar_catalog[0:30])
-    #save_lines = func(quasar_catalog[1061])
 
     lc.write_header(quasar_catalog)
-    f = open(lc.lc_dir+lc.lc_info_file,"a")
-    f.write("\n".join(save_lines))
-    f.close()
+    quasar_catalog = lc.get_unprocessed_quasars(quasar_catalog)
+
+    pool = mp.Pool(mp.cpu_count()*3/4)
+    pool.map(func,quasar_catalog)
+    #func(quasar_catalog[1061])
+
 
     stop = timeit.default_timer()
     useful_funcs.print_and_write(lc.log,"Execution Time:"+\
                                  str((stop-start)/60.)+" mins")
-    
 

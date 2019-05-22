@@ -9,6 +9,33 @@ import useful_funcs
 if __name__ == '__main__':
 
 
+    lc = main.lc()
+    lc_info = lc.read_lc_info()
+    print ("Parent_sample: " + str(len(lc_info)))
+
+    # plot epoch distribution
+    number_epochs_DES = plot.plot(2,2,figsize=(10,8))
+    number_epochs_SDSS = plot.plot(2,2,figsize=(10,8))
+    for band in lc.band_list:
+        number_epochs_DES.plot_histogram(lc_info["N_DES_"+band],band)
+        number_epochs_SDSS.plot_histogram(lc_info["N_SDSS_"+band],band)
+
+    print ("Saving the DES number of epochs plot at 'plot/DES_epochs.png'")
+    print ("Saving the SDSS number of epochs plot at 'plot/SDSS_epochs.png'")
+    number_epochs_DES.savefig("plot/","DES_epochs.png","DES")
+    number_epochs_SDSS.savefig("plot/","SDSS_epochs.png","SDSS")
+
+
+    # make clean sample (epoch_DES > 50, epoch_SDSS > 30, > 2 band)
+    clean_sample = lc.get_clean_sample(lc_info,N_DES=50,N_SDSS=30,N_band=2)
+
+    # plot the redshift and mag distribution
+    redshift_mag = plot.plot(1,1,figsize=(8,6))
+    redshift_mag.plot_redshift_mag(clean_sample["z"],clean_sample["mag_psf_i"])
+    redshift_mag.savefig("plot/","redshift_mag.png",\
+                         "",tight_layout=False)
+
+    '''
     lc = main.lc("DES/")
     lc_info = np.genfromtxt(lc.lc_dir+lc.lc_info_file,delimiter=",",\
               skip_header=1,\
@@ -64,5 +91,5 @@ if __name__ == '__main__':
     print ("Number in SDSS DR7/14:"+str( number_DR7_DR14))
     print clean_sample[np.invert(in_DR7_DR14)]
             
-
+    '''
 

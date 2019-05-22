@@ -1,5 +1,6 @@
 import os
 import numpy as np
+from scipy.signal import medfilt
 from astropy.io import fits,ascii
 from astropy.coordinates import SkyCoord
 from astropy import units as u
@@ -19,13 +20,15 @@ class lc:
         self.query      = query.query_DES() # to get DES lightcurves
         self.query_S82  = query.Stripe82() # get SDSS S82 lightcurves
         self.query_SDSS = query.query_SDSS() # get SDSS spectra
+        self.query_ZTF  = query.query_ZTF() # get ZTF lightcurves
         self.save_dir = self.lc_dir+"DES/"
-        #useful_funcs.create_dir(self.save_dir)
+        useful_funcs.create_dir(self.save_dir)
         self.quasar_catalog_dir = "catalog/"
         self.quasar_catalog = "DR14+DR7+OzDES+Milliq_S1S2.txt"
         self.lc_info_file = "lc_info.csv"
         self.log = "log_lightcurves"
         self.band_list = ["g","r","i","z"]
+        self.save_line = ""
 
     ###########
     # General #
@@ -72,13 +75,35 @@ class lc:
 
     def write_header(self,quasar_catalog):
 
-        f = open(self.lc_dir+self.lc_info_file,"w")
-        headers = ",".join(quasar_catalog.dtype.names)
-        f.write("name,"+headers+",N_DES_g,N_DES_r,N_DES_i,N_DES_z")
-        f.write(",N_SDSS_g,N_SDSS_r,N_SDSS_i,N_SDSS_z,N_PS_g,N_PS_r")
-        f.write(",N_PS_i,N_PS_z\n")
+        if not os.path.isfile(self.lc_dir+self.lc_info_file):
+            f = open(self.lc_dir+self.lc_info_file,"w")
+            headers = ",".join(quasar_catalog.dtype.names)
+            f.write("name,"+headers+",N_DES_g,N_DES_r,N_DES_i,N_DES_z")
+            f.write(",N_SDSS_g,N_SDSS_r,N_SDSS_i,N_SDSS_z,N_PS_g,N_PS_r")
+            f.write(",N_PS_i,N_PS_z,N_ZTF_g,N_ZTF_r\n")
+            f.close()
+
+    def save_information(self):
+
+        f = open(self.lc_dir+self.lc_info_file,"a")
+        f.write(self.save_line+"\n")
         f.close()
 
+    def read_lc_info(self):
+
+        lc_info = np.genfromtxt(self.lc_dir+self.lc_info_file,dtype=None,\
+                                delimiter=",",names=True)
+        return lc_info
+
+    def get_unprocessed_quasars(self,quasar_catalog):    
+
+        ra_total = quasar_catalog["ra"]
+        subset= self.lc_info()
+        ra_sub = subset["ra"]
+        mask = np.array([tot not in ra_sub for tot in ra_total ])
+        quasar_catalog = quasar_catalog[mask]
+
+        return quasar_catalog
 
     ############
     # DES part #
@@ -121,23 +146,20 @@ class lc:
 
         return total_quasars
 
-    def save_DES_lightcurves(self,total_quasars,save_line):
+    def save_DES_lightcurves(self,total_quasars):
 
         # save DES lightcurve in each band and record number of data points
 
         for band in self.band_list:
-            quasars_in_band = total_quasars[total_quasars["band"]==band]
-            if len(quasars_in_band) == 0 :
+            data_in_band = total_quasars[total_quasars["band"]==band]
+            if len(data_in_band) == 0 :
                 print("No data found in "+band+" !")
-                save_line = save_line+",0"
+                self.save_line = self.save_line+",0"
             else:
-                np.savetxt(self.save_dir+"/"+band+".csv",\
-                           quasars_in_band[["mjd_obs","mag_psf",\
-                           "mag_err_psf"]],fmt="%f,%f,%f",comments='',\
-                           header="mjd_obs,mag_psf,mag_err_psf")
-                save_line = save_line+","+str(len(quasars_in_band))
-
-        return save_line
+                self._process_and_save(data_in_band["mjd_obs"],\
+                                       data_in_band["mag_psf"],\
+                                       data_in_band["mag_err_psf"],band,\
+                                       outlier=True,bin_data=True)
 
     #############
     # SDSS part #
@@ -164,45 +186,40 @@ class lc:
 
         return matched_quasars
 
-    def save_SDSS_lightcurves(self,SDSS_quasars,save_line,mag_diff=None):
+    def save_SDSS_lightcurves(self,SDSS_quasars,mag_diff=None):
 
         # save the SDSS light curves into csv file
 
         for band in self.band_list:
-            quasars_in_band = SDSS_quasars[SDSS_quasars["band"]==band]
-            if len(quasars_in_band) == 0 :
-                print "No data found in "+band+" !"
-                save_line = save_line+",0"
+            data_in_band = SDSS_quasars[SDSS_quasars["band"]==band]
+            if len(data_in_band) == 0 :
+                print "No data found in SDSS "+band+" !"
+                self.save_line = self.save_line+",0"
             else:
-                save_line = save_line+","+str(len(quasars_in_band))
-                np.savetxt(self.save_dir+"/"+band+".csv",\
-                           quasars_in_band[["mjd_obs","mag_psf",\
-                           "mag_err_psf"]],fmt="%f,%f,%f",comments='',\
-                           header="mjd_obs,mag_psf,mag_err_psf")
-                if mag_diff is not None:
-                    corr_dir = self.save_dir.replace("SDSS", "SDSS_corr")
-                    useful_funcs.create_dir(corr_dir)
-                    quasars_in_band["mag_psf"] = quasars_in_band["mag_psf"]+\
-                                                 mag_diff[band]
-                    np.savetxt(corr_dir+"/"+band+".csv",\
-                               quasars_in_band[["mjd_obs","mag_psf",\
-                               "mag_err_psf"]],fmt="%f,%f,%f",comments='',\
-                               header="mjd_obs,mag_psf,mag_err_psf")
-        return save_line
+                self._process_and_save(data_in_band["mjd_obs"],\
+                                       data_in_band["mag_psf"],\
+                                       data_in_band["mag_err_psf"],band,\
+                                       outlier=True,bin_data=True,\
+                                       mag_diff=mag_diff)
 
     #################
     # PanSTARRS DR2 #
     #################
 
-    def generate_and_save_PS_lightcurves(self,quasar,save_line):
+    def generate_and_save_PS_lightcurves(self,quasar):
 
         # make and save PanSTARRS light curves
 
         dcolumns = ("""objID,detectID,filterID,obsTime,ra,dec,psfFlux,psfFluxErr,psfMajorFWHM,psfMinorFWHM,psfQfPerfect,apFlux,apFluxErr,infoFlag,infoFlag2,infoFlag3""").split(',')
         dresults = query_PS.ps1cone(quasar["ra"],quasar["dec"],2./3600.,\
                    table='detection',release='dr2',columns=dcolumns)
+        if len(dresults) == 0: 
+            print ("0 data points in Panstarrs ALL bands")
+            self.save_line = self.save_line+",0,0,0,0"
+            return 0
         dtab = query_PS.addfilter(ascii.read(dresults))
-        dtab.sort('obsTime')
+        if len(dtab) > 1:
+            dtab.sort('obsTime')
 
         # save light curves
 
@@ -213,19 +230,170 @@ class lc:
             mag_error = dtab_band['psfFluxErr']/dtab_band['psfFlux']*1.09
             signal = 10**((22.5-mag)/2.5)
             error = mag_error*signal/1.09
-            if not len(dtab_band) > 1:
+            if len(dtab_band) == 0:
                 print ("0 data points in Panstarrs "+band+" band !!")
-                save_line = save_line+",0"
+                self.save_line = self.save_line+",0"
             else:
-                save_line = save_line+","+str(len(dtab_band))
-                np.savetxt(self.save_dir+"/"+band+".csv",\
-                           np.array([time,mag,mag_error]).T,\
-                           fmt="%f,%f,%f",comments='',\
-                           header="mjd_obs,mag_psf,mag_err_psf")
+                self._process_and_save(time,mag,mag_error,band)
 
-        return save_line
+        return 0 
 
 
+    ############
+    # ZTF part #
+    ############
+
+    def generate_and_save_ZTF_lightcurves(self,quasar):
+
+        data = self.query_ZTF.get_lightcurve(quasar["ra"],\
+               quasar["dec"],2./3600.)
+        if data is None or data.size == 0 :
+            print ("0 data points in ZTF ALL bands")
+            self.save_line = self.save_line+",0,0"
+            return 0
+        if data.size > 1:
+            data.sort(order='mjd')
+
+        for band in self.query_ZTF.band_list:
+            data_band = data[data['filtercode'] == \
+                        self.query_ZTF.band_name[band]]
+            time = data_band["mjd"]
+            mag = data_band["mag"]
+            mag_error = data_band["magerr"]
+            if data_band.size == 0:
+                print("0 data points in ZTF "+band+" band !!")
+                self.save_line = self.save_line+",0"
+            else:
+                self._process_and_save(time,mag,mag_error,band)
+
+        return 0
+
+    ###########################
+    # Pre-process lightcurves #
+    ###########################
+
+    def _process_and_save(self,time,signal,error,band,mag_diff=None,\
+                          outlier=False,bin_data=False,record=True):
+        # process the lightcurve (outlier rejection or binning) and save to 
+        # the lightcurve directory
+
+        # remove outlier 
+        if outlier:
+            mask = self._get_mask_sigma_clip_moving_avg(signal)
+            time   = time[mask]
+            signal = signal[mask]
+            error  = error[mask]
+
+        # bin the data at the same date
+        if bin_data:
+            time,signal,error = self._bin_data(time,signal,error)
+
+        # save lightcurves
+        
+        np.savetxt("%s/%s.csv" % (self.save_dir , band),\
+                   np.array([time,signal,error]).T,\
+                   fmt="%f,%f,%f",comments="",\
+                   header="mjd_obs,mag_psf,mag_err_psf")
+        if record :
+            self.save_line = self.save_line+","+str(len(signal))
+
+        if mag_diff is not None: # For SDSS only
+            corr_dir = self.save_dir.replace("SDSS", "SDSS_corr")
+            useful_funcs.create_dir(corr_dir)
+            signal = signal+mag_diff[band]
+            np.savetxt("%s/%s.csv" % (corr_dir , band),\
+                       np.array([time,signal,error]).T,\
+                       fmt="%f,%f,%f",comments="",\
+                       header="mjd_obs,mag_psf,mag_err_psf")
+
+
+    def _get_mask_sigma_clip_moving_avg(self,signal,sigma_level=5):
+
+        # return mask for sigma clip using moving median
+        mask = np.ones( len(signal) , dtype=bool)
+        outliers = True
+        while outliers:
+            sigma = np.std(signal[mask])
+            signal_smooth = medfilt(signal[mask],kernel_size=5)
+            mask_thistime = (abs(signal[mask] - signal_smooth) < \
+                             sigma*sigma_level)
+            if np.sum(~mask_thistime) == 0: outliers = False
+            else: mask[mask] = mask_thistime
+        return mask
+
+    def _bin_data(self,time,signal,error):
+
+        # bin the data points within the same day
+        time2   = []
+        signal2 = []
+        error2  = []
+        count   = 0
+
+        while(count < len(time)):
+            idx = ( np.floor(time) == np.floor(time[count]) )
+            signal_temp = signal[idx]
+            error_temp  = error[idx]
+            nn          = len(signal_temp)
+
+            signal_temp, error_temp = self.__mag2flux(signal_temp, error_temp)
+            signal_temp, error_temp = self.__weighted_mean(signal_temp, error_temp)
+            signal_temp, error_temp = self.__flux2mag(signal_temp, error_temp)
+
+            time2.append( np.average(time[idx]) )
+            signal2.append( signal_temp )
+            error2.append( error_temp )
+
+            count += nn
+
+        time   = np.asarray(time2)
+        signal = np.asarray(signal2)
+        error  = np.asarray(error2)
+
+        return time,signal,error
+
+    def __mag2flux(self, signal, error):
+        flux = 10.**(-1.*signal/2.5)
+        return 10.**(-1.*signal/2.5), np.abs( -flux*error*np.log(10.)/2.5 )
+
+
+    def __flux2mag(self, signal, error):
+        return -2.5*np.log10(signal), np.abs( -2.5* error/signal/np.log(10.))
+
+
+    def __weighted_mean(self, signal, error):
+        signal_mean = np.sum(signal/error**2.) / np.sum(1./error**2.)
+        error_mean  = np.sqrt( np.sum(error**2.) ) / np.sqrt( np.float(len(signal)) )
+        return signal_mean, error_mean
+
+
+    ###################
+    # lightcurve stat #
+    ###################
+
+    def get_clean_sample(self,quasars_info,N_DES=50,N_SDSS=30,N_band=2):
+
+        print ("Parent_sample: "+str(len(quasars_info)))
+        N = 0
+        clean_sample = np.array([],dtype=quasars_info.dtype)
+        for row in quasars_info:
+            N_pass = 0
+            for band in self.band_list:
+                if( row["N_DES_"+band]>N_DES) and (row["N_SDSS_"+band]>N_SDSS) \
+                    and (row["spread_model_i"] < 0.005):
+                    N_pass = N_pass +1
+            if N_pass > N_band-1:
+                clean_sample = np.append(clean_sample,row)
+        print ("Number of Quasar with Enough epochs: "+str(len(clean_sample)))
+        print ("z:"+str(np.median(clean_sample["z"])))
+        print ("mag_psf_i:"+str(np.median(clean_sample["mag_psf_i"])))
+        print ("N_DES_i:"+str(np.median(clean_sample["N_DES_i"])))
+        print ("N_SDSS_i:"+str(np.median(clean_sample["N_SDSS_i"])))
+
+        np.savetxt(self.lc_dir+"lc_clean.csv",clean_sample,\
+                   fmt="%s,"*(len(clean_sample.dtype.names)-1)+"%s",\
+                   header=",".join(clean_sample.dtype.names),comments="")
+
+        return clean_sample
 
 ############################################################################
     ##################
