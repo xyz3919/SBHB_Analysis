@@ -98,7 +98,7 @@ class lc:
     def get_unprocessed_quasars(self,quasar_catalog):    
 
         ra_total = quasar_catalog["ra"]
-        subset= self.lc_info()
+        subset= self.read_lc_info()
         ra_sub = subset["ra"]
         mask = np.array([tot not in ra_sub for tot in ra_total ])
         quasar_catalog = quasar_catalog[mask]

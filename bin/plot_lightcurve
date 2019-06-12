@@ -4,7 +4,35 @@ import sys
 import os
 import numpy as np
 from lightcurve import plot
+from scipy.optimize import curve_fit
  
+def read_period_amp(name):
+
+    filepath = "analysis_orig/%s/periodogram_%s.csv" %(name,band)
+    data = np.genfromtxt(filepath,names=True,delimiter=",",dtype=None)
+    return data
+
+def get_period_max(name):
+    data_period = read_period_amp(name)
+    period = data_period["period"]
+    amp = data_period["amplitude"]
+    # only search for peak amp between 500 days and 3 cycles.
+    interval = (period<max(period)/3.) & (period>500)
+    period_within = period[interval]
+    amp_within = amp[interval]
+    period_max = period_within[np.where(amp_within==np.max(amp_within))]
+    return period_max
+
+def fitting(time, signal, error, period):
+
+    def sin_func(x, amplitude, ref_day, median):
+        return amplitude*np.sin(2*np.pi*x/period+ref_day)+median
+    p0 = [1, 50000, 20]
+    popt, pcov = curve_fit(sin_func, time, signal, p0=p0)
+    xn = np.linspace(np.min(time)-100, np.max(time)+100, 10000)
+    yn = sin_func(xn, *popt)
+    return xn, yn
+
 
 if __name__ == "__main__":
 
@@ -12,14 +40,23 @@ if __name__ == "__main__":
     survey_list = ["DES","SDSS_corr","PS","ZTF"]
     band_list = ["g","r","i","z"]
     lc_plot = plot.plot(4,1,figsize=(8,8),sharex=True)
-    for survey in survey_list:
-        for band in band_list:
+    for band in band_list:
+        for survey in survey_list:
             filepath = "lightcurves/%s/%s/%s.csv" %(survey,name,band)
             if os.path.isfile(filepath):
                 data = np.genfromtxt(filepath, names=True,delimiter=",",\
                                      dtype=None)
                 lc_plot.plot_light_curve(data["mjd_obs"],data["mag_psf"],\
                                          data["mag_err_psf"],survey,band)
+                if survey == "DES" : data_DES = data
+                if survey =="SDSS_corr": data_SDSS = data
+
+        data_total = np.hstack([data_DES,data_SDSS])
+                # get fitted sin curve
+        period_max = get_period_max(name)
+        x_sin,y_sin = fitting(data_total["mjd_obs"],data_total["mag_psf"],\
+                              data_total["mag_err_psf"],period_max)
+        lc_plot.plot_fit_sin_curve(x_sin,y_sin,band)
     lc_plot.savefig("","lightcurve.png",name)
             
 

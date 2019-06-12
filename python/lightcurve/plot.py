@@ -143,6 +143,13 @@ class plot:
                     size=12, ha='right', va='top', color=self.color_list[band],\
                     bbox=dict(boxstyle='round', fc='w'))
 
+    def plot_fit_sin_curve(self,x_sin,y_sin,band):
+
+        ax = self.ax_list[band]
+        ax.plot(x_sin,y_sin,label=band,c=self.color_list[band],linestyle="--",\
+                linewidth=1)
+
+
 def plot_magnitude_comparison(x,y,out_dir,mjd):
 
     plt.scatter(x,y)
