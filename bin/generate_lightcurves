@@ -119,15 +119,16 @@ if __name__ == '__main__':
     
     quasar_catalog = lc.load_quasar_catalog()
 
-    #lc.write_header(quasar_catalog)
-    #quasar_catalog = lc.get_unprocessed_quasars(quasar_catalog)
+    lc.write_header(quasar_catalog)
+    quasar_catalog = lc.get_unprocessed_quasars(quasar_catalog)
+
+    for i in range(len(quasar_catalog)):
+        main_steps(quasar_catalog[i])
 
     #pool = mp.Pool(mp.cpu_count()*2/4)
     #pool.map(func,quasar_catalog)
-    func(quasar_catalog[833])
+    #func(quasar_catalog[833])
     # 1216,890,833
-
-
 
     stop = timeit.default_timer()
     useful_funcs.print_and_write(lc.log,"Execution Time:"+\

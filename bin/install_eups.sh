@@ -12,23 +12,25 @@ then
 fi
 
 bin_path=$(dirname $(which install_eups.sh))
-#echo export PATH=$bin_path$'/:$PATH' >>setup.sourceme
-#echo export PYTHONPATH="${bin_path/bin/python}"$'/:$PYTHONPATH\n'>>setup.sourceme
+echo export PATH=$bin_path$'/:$PATH' >>setup.sourceme
+echo export PYTHONPATH="${bin_path/bin/python}"$'/:$PYTHONPATH\n'>>setup.sourceme
 
 cd $eups_dir
 
-#curl -O http://desbuild.cosmology.illinois.edu/desdm_eupsinstall.py
-#python desdm_eupsinstall.py
+curl -O http://desbuild.cosmology.illinois.edu/desdm_eupsinstall.py
+python desdm_eupsinstall.py
 
 source ./eups/desdm_eups_setup.sh
 
 #eups distrib install python 2.7.9+2
 eups distrib install setuptools 18.0+1
+#eups distrib install setuptools 40.4.3+1
 eups distrib install numpy 1.10.4+4
 eups distrib install scipy 0.14.0+10
 eups distrib install despydb 2.0.4+0
 eups distrib install despymisc 1.0.4+2
 eups distrib install astropy 1.1.2+6
+#eups distrib install astropy 2.0.8+0
 eups distrib install matplotlib 1.5.3+2
 eups distrib install pandas  0.15.2+5
 eups distrib install sextractor 2.24.4+1
@@ -37,7 +39,7 @@ eups distrib install swarp 2.40.1+0
 
 cd ..
 
-echo $'setup setuptools\n setup numpy\nsetup scipy\nsetup despydb'>>setup.sourceme
+echo $'setup setuptools\nsetup numpy\nsetup scipy\nsetup despydb'>>setup.sourceme
 echo $'setup astropy\nsetup despymisc\nsetup matplotlib'>>setup.sourceme
 echo $'setup pandas\nsetup sextractor\nsetup psfex\nsetup swarp\n'>>setup.sourceme
 
@@ -69,6 +71,9 @@ export PYTHONPATH=$PYTHONPATH:`pwd`/$pythonpackage_dir/lib/python2.7/site-packag
 echo $'export PYTHONPATH=$PYTHONPATH:'`pwd`/$pythonpackage_dir/$'lib/python2.7/site-packages/' >> ../setup.sourceme
 echo $'export PATH=$PATH:'`pwd`/$pythonpackage_dir/$'bin/' >> ../setup.sourceme
 echo $'export PATH=$PATH:'`pwd`/$'bin/' >> ../setup.sourceme
+
+# install astropy (new version)
+pip install --prefix=`pwd`/$pythonpackage_dir astropy==2.0.14
 
 # install astroquery by pip
 pip install --prefix=`pwd`/$pythonpackage_dir astroquery

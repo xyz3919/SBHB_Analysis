@@ -13,6 +13,7 @@ def task(quasar):
         start = timeit.default_timer()
         analysis = main.analysis()
         analysis.analyze_lightcurve(quasar)
+        analysis.plot_periodogram_and_lightcurve(quasar)
         stop = timeit.default_timer()
         useful_funcs.print_and_write("log_period_analysis",quasar["name"]+\
                                  " is finished ("+str((stop-start)/60.)+" mins)")
@@ -30,11 +31,16 @@ if __name__ == '__main__':
     analysis = main.analysis()
     quasar_catalog = analysis.read_quasar_catalog()
 
+
     pool = mp.Pool(mp.cpu_count()*6/8)
-    save_lines = pool.map(task,quasar_catalog)
-    analysis.test = True
+    pool.map(task,quasar_catalog)
     analysis.analyze_lightcurve(quasar_catalog)
-    #analysis.analyze_lightcurve(quasar_catalog[510])
+
+    """
+    analysis.test = True
+    analysis.analyze_lightcurve(quasar_catalog[510])
+    analysis.plot_periodogram_and_lightcurve(quasar_catalog[510])
+    """
 
     stop = timeit.default_timer()
     useful_funcs.print_and_write("log_period_analysis",\

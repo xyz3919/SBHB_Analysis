@@ -25,7 +25,8 @@ class plot:
                            "i":"brown","z":"purple","total":"black"}
         self.fmt_list = {"DES":{"fmt":"o","markersize":5},\
                          "SDSS_corr":{"fmt":"s","markersize":5},\
-                         "PS":{"fmt":"^","markersize":5}
+                         "PS":{"fmt":"^","markersize":5},\
+                         "ZTF":{"fmt":"+","markersize":5}
                         }
 
     def plot(self,x,y,band,log=False):
@@ -122,17 +123,17 @@ class plot:
            bounday_psd_at_each__freq = [np.percentile(psd,percentile) for psd in psd_at_each__freq]
            ax.plot(_freq/365,bounday_psd_at_each__freq,"--",c="black",linewidth=0.5)
 
-    def plot_light_curve(self,time,signal,error,survey,band,yaxis="mag"):
+    def plot_light_curve(self,time,signal,error,survey,band,adjust_lim=True,yaxis="mag"):
 
         if survey in self.fmt_list.keys() : fmt = self.fmt_list[survey]
         else : fmt = {"fmt":"x","markersize":5}
         ax = self.ax_list[band]
         ax.errorbar(time,signal,yerr=error,label=band,c=self.color_list[band],\
                     **fmt)
-        bottom,top = ax.get_ylim()
-        if bottom > np.min(signal)-0.1: bottom = np.min(signal)-0.1
-        if top < np.max(signal)+0.1: top = np.max(signal)+0.1
-        ax.set_ylim(bottom,top)
+        #bottom,top = ax.get_ylim()
+        #if bottom > np.min(signal)-0.1: bottom = np.min(signal)-0.1
+        #if top < np.max(signal)+0.1: top = np.max(signal)+0.1
+        #ax.set_ylim(bottom,top)
         if band == "z":
             ax.set_xlabel("MJD")
         if yaxis== "mag":
@@ -143,7 +144,8 @@ class plot:
                 bottom,top = ax.get_ylim()
             if bottom < np.max(signal)+0.1: bottom = np.max(signal+0.1)
             if top > np.min(signal)-0.1: top = np.min(signal)-0.1
-            ax.set_ylim(bottom,top)
+            if adjust_lim:
+                ax.set_ylim(bottom,top)
         else:
             ax.set_ylabel("Flux(nanomaggy)")
             bottom,top = ax.get_ylim()

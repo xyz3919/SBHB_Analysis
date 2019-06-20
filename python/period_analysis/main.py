@@ -29,6 +29,7 @@ class analysis:
         self.random_state = np.random.RandomState(0)
         self.band_list = ["g", "r", "i", "z"]
         self.surveys = ["DES", "SDSS_corr"]
+        self.surveys_add = ["ZTF","PS"]
         self.lc_names = ["mjd_obs", "mag_psf", "mag_err_psf"]
         self.period_lowerlim = 500
         self.test = False
@@ -69,13 +70,16 @@ class analysis:
     def read_lightcurve(self, name, survey, band):
 
         file_path = self.lc_dir+survey+"/"+name+"/"+band+".csv"
-        data = pd.read_csv(file_path, comment="#")
-        return data
+        if not os.path.exists(file_path):
+            return None
+        else:
+            data = pd.read_csv(file_path, comment="#")
+            return data
 
-    def error_boostraping(self, lc, periodogram, band):
+    def error_boostraping(self, lc, band):
 
         if self.test is True: number_times = 100
-        else: number_times = 10000
+        else: number_times = 1000
         period_obs, signal_obs = lc.periodogram(lc.time, lc.signal)
         signal_boost = self.random_state.normal(lc.signal, lc.error, \
                        [number_times, len(lc.signal)])
@@ -84,6 +88,8 @@ class analysis:
             period_boost, psd_boost = lc.periodogram(lc.time, signal)
             signal_total.append(psd_boost)
 
+        #np.save("%s/psds_boost_%s.npy" % (save_dir,band),signal_total)
+
         signal_total = np.array(signal_total, dtype=np.float64)
 
         error_list = []
@@ -91,7 +97,7 @@ class analysis:
             error = np.std(signal_total[:, i])
             error_list.append(error)
         error_list = np.array(error_list, dtype=np.float64)
-        periodogram.plot_boost_periodogram(period_obs, signal_obs, error, band)
+        #periodogram.plot_boost_periodogram(period_obs, signal_obs, error, band)
         
         return error_list
 
@@ -104,7 +110,7 @@ class analysis:
         return period_max
 
 
-    def fitting(self, time, signal, error, period):
+    def _fitting(self, time, signal, period):
 
         def sin_func(x, amplitude, ref_day, median):
             return amplitude*np.sin(2*np.pi*x/period+ref_day)+median
@@ -127,11 +133,25 @@ class analysis:
         parameters_list = parameters_list[~excluded]
         return parameters_list
 
+    def save_lightcurve(self,time,signal,error,filename):
+
+        save_data=zip(time,signal,error)
+        np.save(filename,save_data)
+        #np.savetxt(filename, save_data, delimiter=",", comments="",\
+        #           fmt="%1.4E",header="time,signal,error")
+
     def save_period_amp(self, _freq, psd, error, filename):
 
-        save_data = zip(_freq, psd, error)
-        np.savetxt(filename, save_data, delimiter=",", comments="",\
-                   header="period,amplitude,error")
+        if error == None:
+            save_data = zip(_freq, psd)
+            np.save(filename,save_data)
+            #np.savetxt(filename, save_data, delimiter=",", comments="",\
+            #           fmt="%1.4E",header="period,amplitude")
+        else:
+            save_data = zip(_freq, psd, error)
+            np.save(filename,save_data)
+            #np.savetxt(filename, save_data, delimiter=",", comments="",\
+            #           fmt="%1.4E",header="period,amplitude,error")
 
     def save_drw_parameters(self, tau, var, mu,filename):
 
@@ -158,9 +178,15 @@ class analysis:
         np.savetxt(filename, save_data, delimiter=",", comments="",\
                    header="period,confidence_level")
 
-    def tailored_simulation(self,lc,band,z,name,periodogram,lightcurve):
+    def tailored_simulation(self,lc,band,z,name):#,periodogram,lightcurve):
 
-        psd_mock_all = []
+        """ running the DRW model fitted to each quasar """
+
+        mock_dir = self.output_dir+name+"/mock"
+        useful_funcs.create_dir(mock_dir)
+
+        #psd_mock_all = []
+        # parameters
         if self.test is True: 
             nwalkers,burnin,Nsteps,draw_times = 100,50,100,100
         else:
@@ -169,38 +195,54 @@ class analysis:
             Nsteps = 500
             draw_times = 5000
 
+        # fitting DRW model
         samples =  lc.fit_drw_emcee(nwalkers=nwalkers, burnin=burnin,\
                            Nstep=Nsteps,random_state=self.random_state)
+
+        # plot walkers
         walkers = plot(3,1,figsize=(10,7), sharex=True)
         walkers.plot_walkers(np.exp(samples))
-        from plot import plot_posterior
-
-        walkers.savefig(self.output_dir+name,"/walker_"+band+".png",band+" band")
+        walkers.savefig(mock_dir,"/walker_"+band+".png",band+" band")
 
         parameters_list = samples[:, burnin:, :].reshape((-1, 3))
 
-        #plot_posterior(np.exp(parameters_list),band,self.output_dir+name+\
-        #               "/post_%s.png" % band)
+        # remove top 5% and bottome 5%
         parameters_list_good = self.clean_parameters_list(parameters_list)
+
+        # plot posterior
         theta = [parameters_list_good[:,0],parameters_list_good[:,1],\
                  parameters_list_good[:,2]]
         likelihood = []
         for theta in parameters_list_good:
             likelihood.append(lnlike(theta,lc.time,lc.signal,lc.error,z))
-        
+        from plot import plot_posterior
         plot_posterior(np.exp(parameters_list_good),likelihood,\
-                       band,self.output_dir+name+"/post_%s.png" % band)
+                       band,mock_dir+"/post_%s.png" % band)
 
+        # make the mock light curves from DRW parameters
+
+        mock_lcs,mock_psds = [],[]
         for i in range(draw_times):
             tau,c,b = np.exp(parameters_list_good[self.random_state.randint(\
                     len(parameters_list_good))])
             mock_time,mock_signal = lc.generate_mock_lightcurve(tau,c,lc.time,\
                                     lc.signal,z,random_state=self.random_state)
+            mock_lcs.append(mock_signal)
+            #mock_lcs.append(np.array([mock_time,mock_signal]).T)
+            #self.save_lightcurve(mock_time,mock_signal,lc.error,\
+            #                     "%s/lc_%s.csv" % (mock_dir,i))
             #lightcurve.plot_mock_curve(mock_time,mock_signal_correct,band)
-            period_mock, psd_mock = lc.periodogram(mock_time,mock_signal)
-            psd_mock_all.append(psd_mock)
-            periodogram.plot_mock_periodogram(period_mock, psd_mock,band)
 
+            period_mock, psd_mock = lc.periodogram(mock_time,mock_signal)
+            mock_psds.append(psd_mock)
+            #self.save_period_amp(period_mock,psd_mock,None,\
+            #                     "%s/psd_%s.csv" % (mock_dir,i))
+            #mock_psds.append(np.array([period_mock,psd_mock]).T)
+            #periodogram.plot_mock_periodogram(period_mock, psd_mock,band)
+        np.save("%s/lcs_%s.npy" % (mock_dir,band),mock_lcs)
+        np.save("%s/psds_%s.npy" % (mock_dir,band),mock_psds)
+
+        """
         psd_at_each_period = zip(*psd_mock_all)
         confidence_levels = []
         period_obs, psd_obs = lc.ls_astroML()
@@ -212,6 +254,7 @@ class analysis:
                                    self.output_dir+name+"/confidence_"+\
                                    band+".csv")
         periodogram.plot_confidence_level(period_mock, psd_mock_all, band)
+        """
 
     def tailored_simulation_javelin(self,lc,band,z,name,periodogram,lightcurve):
 
@@ -283,20 +326,144 @@ class analysis:
                                    band+".csv")
         periodogram.plot_confidence_level(period_mock, psd_mock_all, band)
 
+    def _calculate_confidence_level(self,period,psd,psds_mock,band):
+
+        psd_mock_at_each_period = zip(*psds_mock)
+        confidence_levels = []
+        for i in range(len(period)):
+            confidence_level = float(stats.percentileofscore(\
+                                     psd_mock_at_each_period[i],psd[i]))
+            confidence_levels.append(100.-confidence_level)
+        self.save_period_confidence_level(period,confidence_levels,\
+                                   self.output_dir+self.name+"/confidence_"+\
+                                   band+".csv")
+        return confidence_levels
+
+    def _load_confidence_level(self,name,band):
+
+        data = np.genfromtxt(self.output_dir+name+"/confidence_"+band+".csv",\
+                             names=True,delimiter=",")
+        return data
+
+    def _get_fit_curve(self,time,signal,name,band):
+
+        """ make fitted sin curve  """
+        confidence_level = self._load_confidence_level(name,band)
+        period_max = self.check_period_max_amp(confidence_level["period"],\
+                     100-confidence_level["confidence_level"])
+        if len(period_max) > 1 : period_max = np.mean(period_max)
+        xn, yn = self._fitting(time, signal, period_max)
+
+        return xn,yn
+
+
+    def plot_periodogram_and_lightcurve(self,quasar):
+
+        """ making the periodogram and light curve plot """
+        name = quasar["name"]
+        self.name = name
+        print ("-- Making periodogram plot %s -- " % name)
+
+        real_dir = self.output_dir+name+"/real"
+        mock_dir = self.output_dir+name+"/mock"
+
+        periodogram = plot(2,2)
+        for band in self.band_list:
+            if os.path.exists("%s/psd_%s.npy" % (real_dir,band)):
+                period,psd,psd_error = np.load("%s/psd_%s.npy" % \
+                                       (real_dir,band))
+                psd_mock = np.load("%s/psds_%s.npy" % (mock_dir,band))
+                self._calculate_confidence_level(period,psd,psd_mock,band)
+                periodogram.plot_periodogram(period, psd,band)
+                periodogram.plot_boost_periodogram(period, psd, psd_error, band)
+                periodogram.plot_confidence_level(period, psd_mock, band)
+        periodogram.savefig(self.output_dir+name,"/periodogram.png",name)
+
+        print ("-- Making light curve plot %s --" % name)
+
+        lightcurve = plot(4,1,figsize=(8,8),sharex=True)
+        for band in self.band_list:
+            for survey in self.surveys+self.surveys_add:
+                data = self.read_lightcurve(name,survey,band)
+                if data is not None:
+                    time, signal, error = data["mjd_obs"],data["mag_psf"],\
+                                          data["mag_err_psf"]
+                    if survey in self.surveys_add: adjust_lim = False
+                    else: adjust_lim = True
+                    lightcurve.plot_light_curve(time,signal,error,survey,band,\
+                                                adjust_lim=adjust_lim)
+
+            if os.path.exists("%s/lc_%s.npy" % (real_dir,band)):
+                time,signal,error = np.load("%s/lc_%s.npy" % \
+                                    (real_dir,band))
+                signal_mock = np.load("%s/lcs_%s.npy" % (mock_dir,band))
+                xn, yn = self._get_fit_curve(time,signal,name,band)
+                lightcurve.plot_fit_curve(xn,yn,band)
+        lightcurve.savefig(self.output_dir+name,"/lightcurve.png",name)
+
 
     def analyze_lightcurve(self,quasar):
 
         """ the main analyzing function """
 
-        periodogram = plot(2,2)
-        multi_periodogram = plot(1,1)
+        name = quasar["name"]
+        print ("-- Analyzing quasar %s --" % name)
+
+        useful_funcs.create_dir(self.output_dir+name)
+        real_dir = self.output_dir+name+"/real"
+        useful_funcs.create_dir(real_dir)
+
+        for band in self.band_list:
+            # avoid missing band
+            if not self.check_lightcurves_exist(name,band):
+                print ("SDSS and DES lightcurves not found in "+band+" band !!")
+            else:
+                # read DES survey
+                survey = self.surveys[0]
+                data = self.read_lightcurve(name,survey,band)
+                #data = self.add_flux_fluxerr_into_data(data)
+                time, signal, error = data["mjd_obs"],data["mag_psf"],\
+                                      data["mag_err_psf"]
+                lc = qso_drw(time, signal, error, quasar["z"], preprocess=False)
+                # add other surveys
+                for survey in self.surveys[1:]:
+                    data = self.read_lightcurve(name,survey,band)
+                    #data = self.add_flux_fluxerr_into_data(data)
+                    if len(data) > 0 :
+                        time,signal,error = data["mjd_obs"],data["mag_psf"],\
+                                            data["mag_err_psf"]
+                        lc.add_lc(time, signal, error, preprocess=False)
+                np.save("%s/lc_%s.npy" % (real_dir,band),\
+                        [lc.time,lc.signal,lc.error])
+                
+                # periodogram
+                if not len(lc.time)>3:
+                    print ("Not enough data points !!")
+                else:
+                    # run Lomb-Scargle for target
+                    period, psd = lc.ls_astroML()
+                    # save error estimated from boostrping
+                    psd_error = self.error_boostraping(lc,band)
+
+                    np.save("%s/psd_%s.npy" % (real_dir,band),\
+                            [period, psd,psd_error])
+                    
+                    # tailored simulation
+                    self.tailored_simulation(lc,band,quasar["z"],name)
+
+    def analyze_lightcurve_orig(self,quasar):
+
+        """ the main analyzing function """
+
+        #periodogram = plot(2,2)
+        #multi_periodogram = plot(1,1)
         #periodogram_carma = plot(2,2)
-        lightcurve = plot(4,1,figsize=(8,8),sharex=True)
+        #lightcurve = plot(4,1,figsize=(8,8),sharex=True)
 
         name = quasar["name"]
         print ("-- Analyzing quasar "+name+ "--")
         useful_funcs.create_dir(self.output_dir+name)
-        useful_funcs.create_dir(self.output_dir+name+"/"+self.carma_dir)
+        #useful_funcs.create_dir(self.output_dir+name+"/"+self.carma_dir)
         lightcurves_total = []
 
         for band in self.band_list:
@@ -308,24 +475,20 @@ class analysis:
                 survey = self.surveys[0]
                 data = self.read_lightcurve(name,survey,band)
                 data = self.add_flux_fluxerr_into_data(data)
-#                lc = qso_drw(data["mjd_obs"],data["flux_psf"],\
-#                             data["flux_err_psf"], quasar["z"],\
                 lc = qso_drw(data["mjd_obs"],data["mag_psf"],\
                              data["mag_err_psf"], quasar["z"],\
-                             preprocess=True)
+                             preprocess=False)
                 time, signal, error = lc.get_lc()
 
-                lightcurve.plot_light_curve(time,signal,error,survey,band)
+                #lightcurve.plot_light_curve(time,signal,error,survey,band)
 
                 # add other surveys
                 for survey in self.surveys[1:]:
                     data = self.read_lightcurve(name,survey,band)
                     data = self.add_flux_fluxerr_into_data(data)
-#                    lc2 = qso_drw(data["mjd_obs"],data["flux_psf"],\
-#                                 data["flux_err_psf"], quasar["z"],\
                     lc2 = qso_drw(data["mjd_obs"],data["mag_psf"],\
                                   data["mag_err_psf"], quasar["z"],\
-                                 preprocess=True)
+                                 preprocess=False)
                     time, signal, error = lc2.get_lc()
                     if len(signal) > 0 :
                         lightcurve.plot_light_curve(time,signal,error,\
@@ -348,7 +511,7 @@ class analysis:
                         print ("Can not find the peak value !!")
                     else:
                         periodogram.plot_peak_period(period_max,band)
-                        xn,yn = self.fitting(lc.time,lc.signal,lc.error,period_max)
+                        xn,yn = self._fitting(lc.time,lc.signal,lc.error,period_max)
                         lightcurve.plot_fit_curve(xn,yn,band)
                     lightcurves_total.append(np.array([lc.time,lc.signal,\
                                              lc.error,[band]*len(lc.time)])) 

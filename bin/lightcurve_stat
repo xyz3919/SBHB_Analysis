@@ -22,8 +22,8 @@ if __name__ == '__main__':
 
     print ("Saving the DES number of epochs plot at 'plot/DES_epochs.png'")
     print ("Saving the SDSS number of epochs plot at 'plot/SDSS_epochs.png'")
-    number_epochs_DES.savefig("plot/","DES_epochs.png","DES")
-    number_epochs_SDSS.savefig("plot/","SDSS_epochs.png","SDSS")
+    number_epochs_DES.savefig("plot/","DES_epochs.png",r"DES")
+    number_epochs_SDSS.savefig("plot/","SDSS_epochs.png",r"SDSS")
 
 
     # make clean sample (epoch_DES > 50, epoch_SDSS > 30, > 2 band)
