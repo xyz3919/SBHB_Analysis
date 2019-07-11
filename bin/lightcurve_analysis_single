@@ -1,0 +1,57 @@
+#!/usr/bin/env python
+# 
+import sys
+import os 
+import numpy as np
+import useful_funcs
+from period_analysis.quasar_drw import quasar_drw as qso_drw
+from period_analysis import main
+from period_analysis.plot import plot
+
+
+
+if __name__ == "__main__":
+
+    lc_file = sys.argv[1]
+    name    = sys.argv[2]
+    band    = "g"
+    
+    
+    data = np.genfromtxt(lc_file)
+    time,signal,error = data[:,0],data[:,1],data[:,2]
+    lc = qso_drw(time, signal, error, 0, preprocess=False)
+
+    analysis = main.analysis()
+    analysis.test = True
+    real_dir = analysis.output_dir+name+"/real"
+    mock_dir = analysis.output_dir+name+"/mock"
+    useful_funcs.create_dir(real_dir)
+    useful_funcs.create_dir(mock_dir)
+
+    # run Lomb-Scargle for target
+    np.save("%s/lc_%s.npy" % (real_dir,band),\
+            [lc.time,lc.signal,lc.error])
+
+    period, psd = lc.ls_astroML()
+    # save error estimated from boostrping
+    psd_error = analysis.error_boostraping(lc,band)
+
+    np.save("%s/psd_%s.npy" % (real_dir,band),\
+            [period, psd,psd_error])
+
+    analysis.tailored_simulation(lc,band,0,name)
+
+    quasar = {"name":name}
+    analysis.plot_periodogram_and_lightcurve(quasar)
+
+    lightcurve = plot(4,1,figsize=(8,8))
+    lightcurve.plot_light_curve(lc.time,lc.signal,lc.error,"DES",band)
+
+    if os.path.exists("%s/lc_%s.npy" % (real_dir,band)):
+        time,signal,error = np.load("%s/lc_%s.npy" % \
+                            (real_dir,band))
+        signal_mock = np.load("%s/lcs_%s.npy" % (mock_dir,band))
+        xn, yn = analysis._get_fit_curve(lc.time,lc.signal,name,band)
+        lightcurve.plot_fit_curve(xn,yn,band)
+    lightcurve.savefig(analysis.output_dir+name,"/lightcurve.png",name)
+

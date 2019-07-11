@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # 
+import time
 import timeit
 from lightcurve import main
 import os
@@ -49,7 +50,15 @@ def main_steps(quasar):
 
     # adjust to DES system
     spec = main.spectra()
-    spec.get_SDSS_spectrum(quasar["ra"],quasar["dec"])
+    for i in range(3):
+        try:
+            spec.get_SDSS_spectrum(quasar["ra"],quasar["dec"])
+            break
+        except Exception as error:
+            pass
+    else:
+        raise error
+    #spec.get_SDSS_spectrum(quasar["ra"],quasar["dec"])
     mag_diff = spec.mag_SDSS_to_DES(name)
 
     lc.save_SDSS_lightcurves(SDSS_quasars,mag_diff)
@@ -116,7 +125,6 @@ if __name__ == '__main__':
     start = timeit.default_timer()
     lc = main.lc()
 
-    
     quasar_catalog = lc.load_quasar_catalog()
 
     lc.write_header(quasar_catalog)

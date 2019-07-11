@@ -307,7 +307,7 @@ class lc:
                        header="mjd_obs,mag_psf,mag_err_psf")
 
 
-    def _get_mask_sigma_clip_moving_avg(self,signal,sigma_level=5):
+    def _get_mask_sigma_clip_moving_avg(self,signal,sigma_level=3):
 
         # return mask for sigma clip using moving median
         mask = np.ones( len(signal) , dtype=bool)

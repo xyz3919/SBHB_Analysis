@@ -14,6 +14,7 @@ class plot:
 
     def __init__(self, cols, rows,**args):
 
+        plt.rc('font', family='serif')
         self.f,self.axes  = plt.subplots(cols, rows,**args)
         if cols==4 and rows ==1:
             self.ax_list = {"g":self.axes[0],"r":self.axes[1],\
@@ -85,14 +86,15 @@ class plot:
         #            bbox=dict(boxstyle='round', fc='w'))
         ax.legend()
 
-    def plot_mock_periodogram(self,_freq, psd,band):
+    def plot_mock_periodogram(self,_freq, psds,band):
 
         ax_list = {"g":self.axes[0,0],"r":self.axes[0,1],\
                    "i":self.axes[1,0],"z":self.axes[1,1]}
         color_list = {"g":"g","r":"orange",\
                       "i":"brown","z":"purple"}
         ax = ax_list[band]
-        ax.plot(_freq/365,psd,label=band,c="grey",linewidth=0.01)
+        for psd in psds:
+            ax.plot(_freq/365,psd,label=band,c="grey",linewidth=0.01)
 
     def plot_boost_periodogram(self,_freq, psd,error,band):
 
@@ -105,11 +107,20 @@ class plot:
         ax.plot(_freq/365,lower,label=band,c=self.color_list[band],\
                 linewidth=0.5)
 
-    def plot_peak_period(self,period,band):
+    def plot_peak_period(self,period, sig_level, band):
 
+        cutout = 0.3
         ax = self.ax_list[band]
-        ax.axvline(x=period, color="r")
 
+        bool_array = np.array(sig_level)< cutout 
+        period_within = (period > 500 ) & (period < max(period)/3.)
+        bool_array = period_within & bool_array
+        boundaries = period[np.append(bool_array[0],np.diff(bool_array))]
+
+        if len(boundaries) % 2 == 1: boundaries=np.append(boundaries,period[-1])
+        for i in range(len(boundaries)/2):
+            ax.axvspan(boundaries[i*2+1]/365,boundaries[i*2]/365,color='blue',\
+                       alpha = 0.5)
 
     def plot_confidence_level(self,_freq, psd_total,band):
         ax_list = {"g":self.axes[0,0],"r":self.axes[0,1],\
@@ -122,6 +133,8 @@ class plot:
         for percentile in percentiles:
            bounday_psd_at_each__freq = [np.percentile(psd,percentile) for psd in psd_at_each__freq]
            ax.plot(_freq/365,bounday_psd_at_each__freq,"--",c="black",linewidth=0.5)
+
+
 
     def plot_light_curve(self,time,signal,error,survey,band,adjust_lim=True,yaxis="mag"):
 
@@ -187,11 +200,40 @@ class plot:
         ax = ax_list[band]
         ax.plot(time,signal,label=band,c="grey",linewidth=0.1)
 
+    def plot_ACF(self,x,xerr_l,xerr_u,y,yerr_l,yerr_u,boundary_u,\
+                 boundary_l,band):
+        ax = self.ax_list[band]
+        ax.errorbar(x,y,yerr=[yerr_l,yerr_u],xerr=[xerr_l,xerr_u],\
+                fmt=".",capsize=0.4,color=self.color_list[band],\
+                label=band,elinewidth=0.2)
+        ax.plot(x,boundary_u,linestyle='dashed',color="grey")
+        ax.plot(x,boundary_l,linestyle='dashed',color="grey")
+        if band == "z":
+            ax.set_xlabel("Offset(yr)")
+        ax.set_ylabel("Power")
+        ax.set_xscale("log")
+        ax.set_ylim(-1,1)
+        ax.set_xlim(0.8,10)
+        ax.set_xticks([1,2,4,8,10])
+        ax.set_xticklabels([1,2,4,8,10])
+
+    def plot_year_estimate(self,popt,perr,rsquared,band):
+        
+        period = popt[0]
+        period_err  = perr[0]
+        ax = self.ax_list[band]
+        word = r"T = %.1f +- %.2f (yr) R$^2$=%.3f" % \
+               (period,period_err,rsquared)
+        ax.annotate(word, xy=(0.02, 0.9),xycoords='axes fraction',\
+                    size=10, ha='left', va='top', color=self.color_list[band],\
+                    bbox=dict(boxstyle='round', fc='w'))
+
+
     def savefig(self,dir_output,name,title):
 
         self.f.tight_layout(rect=[0, 0.03, 1, 0.95])
         self.f.suptitle(title)
-        self.f.savefig(dir_output+name)
+        self.f.savefig(dir_output+name,dpi=200)
         plt.close(self.f)
 
 
@@ -282,6 +324,16 @@ def plot_drw_parameters(tau,sigma,band,save_path):
     fig.suptitle(band)
     fig.savefig(save_path)
 
+def plot_ACF(ax,x,xerr_l,xerr_u,y,yerr_l,yerr_u,boundary_u,boundary_l,band):
+
+    color_list = {"g":"g","r":"orange",\
+                  "i":"brown","z":"purple","total":"black"}
+    ax.errorbar(x,y,yerr=[yerr_l,yerr_u],xerr=[xerr_l,xerr_u],\
+                fmt=".",capsize=0.5,color=color_list[band],\
+                label=band,elinewidth=0.2)
+    ax.plot(x,boundary_u,linestyle='dashed',color="grey")#color_list[band])
+    ax.plot(x,boundary_l,linestyle='dashed',color="grey")#color_list[band])
+    ax.set_ylim(-1,1)
 
         
 

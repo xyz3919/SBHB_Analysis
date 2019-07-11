@@ -68,9 +68,11 @@ python get-pip.py
 
 export PYTHONPATH=$PYTHONPATH:`pwd`/$pythonpackage_dir/lib/python2.7/site-packages/
 
-echo $'export PYTHONPATH=$PYTHONPATH:'`pwd`/$pythonpackage_dir/$'lib/python2.7/site-packages/' >> ../setup.sourceme
+echo $'export PYTHONPATH='`pwd`/$pythonpackage_dir/$'lib/python2.7/site-packages/:$PYTHONPATH' >> ../setup.sourceme
 echo $'export PATH=$PATH:'`pwd`/$pythonpackage_dir/$'bin/' >> ../setup.sourceme
 echo $'export PATH=$PATH:'`pwd`/$'bin/' >> ../setup.sourceme
+# install scipy 
+pip install --prefix=`pwd`/$pythonpackage_dir scipy==0.19.1
 
 # install astropy (new version)
 pip install --prefix=`pwd`/$pythonpackage_dir astropy==2.0.14

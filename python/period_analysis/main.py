@@ -101,13 +101,14 @@ class analysis:
         
         return error_list
 
-    def check_period_max_amp(self, period, psd):
+    def _check_period_max_amp(self, period, psd):
         # only search for peak amp between 500 days and 3 cycles.
         interval = (period<max(period)/3.) & (period>self.period_lowerlim)
         period_within = period[interval]
         amp_within = psd[interval]
-        period_max = period_within[np.where(amp_within==np.max(amp_within))]
-        return period_max
+        amp_max = np.max(amp_within)
+        period_max = period_within[np.where(amp_within==amp_max)]
+        return period_max,amp_max
 
 
     def _fitting(self, time, signal, period):
@@ -120,6 +121,25 @@ class analysis:
         xn = np.linspace(np.min(time)-100, np.max(time)+100, 10000)
         yn = sin_func(xn, *popt)
         return xn, yn
+
+    def _exp_sin(self,x,T,tau):
+        return np.cos(2*np.pi/T*x)*np.exp(-x/tau)
+
+    def _fitting_exp_sin(self, time, signal):
+
+        p0 = [3 , 1 ]
+        popt, pcov = curve_fit(self._exp_sin,time,signal, p0=p0, \
+                               bounds=(0,[20,20]),maxfev=5000)
+        # calculate goodness of fit
+        residuals = signal- self._exp_sin(time, *popt)
+        ss_res = np.sum(residuals**2)
+        ss_tot = np.sum((signal-np.mean(signal))**2)
+        r_squared = 1 - (ss_res / ss_tot)
+
+        perr = np.sqrt(np.diag(pcov))
+        xn = np.linspace(np.min(time)-0.1, np.max(time)+0.1, 10000)
+        yn = self._exp_sin(xn, *popt)
+        return popt,perr,xn,yn,r_squared
 
     def clean_parameters_list(self, parameters_list):
 
@@ -326,7 +346,7 @@ class analysis:
                                    band+".csv")
         periodogram.plot_confidence_level(period_mock, psd_mock_all, band)
 
-    def _calculate_confidence_level(self,period,psd,psds_mock,band):
+    def _calculate_confidence_level(self,period,psd,psds_mock,band,ACF=False):
 
         psd_mock_at_each_period = zip(*psds_mock)
         confidence_levels = []
@@ -334,14 +354,19 @@ class analysis:
             confidence_level = float(stats.percentileofscore(\
                                      psd_mock_at_each_period[i],psd[i]))
             confidence_levels.append(100.-confidence_level)
+        if ACF: append = "ACF" 
+        else: append = ""
         self.save_period_confidence_level(period,confidence_levels,\
                                    self.output_dir+self.name+"/confidence_"+\
-                                   band+".csv")
+                                   append+"_"+band+".csv")
         return confidence_levels
 
-    def _load_confidence_level(self,name,band):
+    def _load_confidence_level(self,name,band,ACF=True):
 
-        data = np.genfromtxt(self.output_dir+name+"/confidence_"+band+".csv",\
+        if ACF: append = "ACF"
+        else: append = ""
+        data = np.genfromtxt(self.output_dir+name+"/confidence_"+append+\
+                             "_"+band+".csv",\
                              names=True,delimiter=",")
         return data
 
@@ -349,8 +374,9 @@ class analysis:
 
         """ make fitted sin curve  """
         confidence_level = self._load_confidence_level(name,band)
-        period_max = self.check_period_max_amp(confidence_level["period"],\
-                     100-confidence_level["confidence_level"])
+        period_max,amp_max = self._check_period_max_amp(\
+                             confidence_level["period"],\
+                             100-confidence_level["confidence_level"])
         if len(period_max) > 1 : period_max = np.mean(period_max)
         xn, yn = self._fitting(time, signal, period_max)
 
@@ -373,10 +399,13 @@ class analysis:
                 period,psd,psd_error = np.load("%s/psd_%s.npy" % \
                                        (real_dir,band))
                 psd_mock = np.load("%s/psds_%s.npy" % (mock_dir,band))
-                self._calculate_confidence_level(period,psd,psd_mock,band)
+                significance_level = self._calculate_confidence_level(\
+                                     period,psd,psd_mock,band)
                 periodogram.plot_periodogram(period, psd,band)
                 periodogram.plot_boost_periodogram(period, psd, psd_error, band)
                 periodogram.plot_confidence_level(period, psd_mock, band)
+                periodogram.plot_mock_periodogram(period, psd_mock, band)
+                periodogram.plot_peak_period(period, significance_level,band)
         periodogram.savefig(self.output_dir+name,"/periodogram.png",name)
 
         print ("-- Making light curve plot %s --" % name)
@@ -506,7 +535,7 @@ class analysis:
                     error_list = self.error_boostraping(lc,periodogram,band)
                     #error_list = self.error_boostraping(lc,periodogram_carma,band)
 
-                    period_max = self.check_period_max_amp(period, psd)
+                    period_max,amp_max = self._check_period_max_amp(period, psd)
                     if period_max is  None:
                         print ("Can not find the peak value !!")
                     else:
@@ -533,6 +562,9 @@ class analysis:
         multi_periodogram.savefig(self.output_dir+name,"/periodogram_multi.png",name)
         #periodogram_carma.savefig(self.output_dir+name,"/periodogram_carma.png",name)
 
+    ########################
+    # Selecting candidates #
+    ########################
 
     def record_confidence_peak(self):
 
@@ -604,8 +636,6 @@ class analysis:
                                 self.stat_dir+"drw_paramets_%s.png" % band)
          
 
-
-
     def make_pdf_for_strong_candidates(self):
 
         """ making the latex file and figure dir for stong cadidates """
@@ -627,7 +657,7 @@ class analysis:
                 "\\includegraphics[width=\\textwidth,right]"+\
                 "{%s/lightcurve.png}\n"+\
                 "\\end{minipage}\n"+\
-                "\\includegraphics[width=\\textwidth]"+\
+                "\\includegraphics[width=0.8\\textwidth]"+\
                 "{%s/ACF.png}\n"+\
                 "\\end{figure}\n"
         clearpage = "\\clearpage\n"
@@ -646,9 +676,144 @@ class analysis:
                           self.pdf_dir+name)
                 os.system("cp "+self.output_dir+name+"/lightcurve.png "+\
                           self.pdf_dir+name)
-                os.system("cp "+self.lc_dir+"/combined/"+name+"/ACF.png "+\
+                os.system("cp "+self.output_dir+name+"/ACF.png "+\
                           self.pdf_dir+name)
                 f.write(body1 % (name,name,name))
             f.write(clearpage)
         f.write(footer)
         f.close()
+
+    ####################
+    # Auto-correlation #
+    ####################
+
+    def _confidence_level(self,N,level=0.997):
+
+        import scipy.special
+
+        sigma = scipy.special.erfinv(1.-2.*(1-level))*np.sqrt(2)
+        R_p = (-1+sigma*np.sqrt(N-2))/(N-1)
+        R_n = (-1-sigma*np.sqrt(N-2))/(N-1)
+
+        return R_p,R_n
+
+    def _ACF_mock_confidence_level(self,power_mock):
+
+        power_mock_at_each_period = zip(*power_mock)
+        percentage_u = 99.7
+        percentage_l = 68.0
+        percentile_line_u = np.percentile(power_mock_at_each_period,\
+                            percentage_u,axis=1)
+        percentile_line_l = np.percentile(power_mock_at_each_period,\
+                            percentage_l,axis=1)
+
+        return percentile_line_u,percentile_line_l
+
+    def run_ACF(self,name,band,using_mock=False):
+
+        # read light curves and save to the right format
+        name_band = "%s_%s" % (name,band)
+        lc = np.load("%s/real/lc_%s.npy" % (self.output_dir+name,band))
+        np.savetxt("%s.csv" % name_band, lc.T)
+
+        # run ZDCF
+        if using_mock:
+            real_lc = np.load("%s/real/lc_%s.npy" % (self.output_dir+name,band))
+            period, error = real_lc[0],real_lc[2]
+            lcs = np.load("%s/mock/lcs_%s.npy" % (self.output_dir+name,band))
+            power_all = []
+            for lc in lcs: 
+                mock_lc = np.array([period,lc,error]).T
+                np.savetxt("%s.csv" % name_band,mock_lc)
+
+                os.system("echo %s | run_ACF " % name_band)
+                os.system("rm %s.lc1 %s.lc2 %s.csv" % \
+                          (name_band,name_band,name_band) )
+                data = np.genfromtxt("%s.dcf" % name_band,dtype=float)
+                power = data[:,3]
+                os.system("rm %s.dcf" % name_band)
+
+                power_all.append(power)
+            np.save("%s/mock/acf_%s.npy" % \
+                    (self.output_dir+name,band),power_all)
+            
+        else:
+            lc = np.load("%s/real/lc_%s.npy" % (self.output_dir+name,band))
+            np.savetxt("%s.csv" % name_band,lc.T)
+
+            os.system("echo %s | run_ACF " % name_band)
+            os.system("rm %s.lc1 %s.lc2 %s.csv" % \
+                     (name_band,name_band,name_band) )
+            data = np.genfromtxt("%s.dcf" % name_band,dtype=float)
+            os.system("rm %s.dcf" % name_band)
+            np.save("%s/real/acf_%s.npy" % \
+                    (self.output_dir+name,band),data)
+
+
+    def generate_ACF_results(self,quasar):
+
+        name = quasar["name"]
+
+        # read lightcurves and save to the right format
+        for band in self.band_list: 
+            self.run_ACF(name,band)
+            self.run_ACF(name,band,using_mock=True)
+
+        # plot ACF result
+        
+        ACF = plot(4,1,figsize=(8,8),sharex=True)
+        for band in self.band_list:
+            if os.path.exists("%s/real/acf_%s.npy" % \
+                              (self.output_dir+name,band)):
+                data = np.load("%s/real/acf_%s.npy" % \
+                               (self.output_dir+name,band))
+                mock_data = np.load("%s/mock/acf_%s.npy" % \
+                                    (self.output_dir+name,band))
+                time = data[:,0]/365.
+                xerr_l = data[:,1]/365.
+                xerr_u = data[:,2]/365.
+                power = data[:,3]
+                yerr_l = data[:,4]
+                yerr_u = data[:,5]
+                N = data[:,6]
+                #boundary_u,boundary_l =  self._confidence_level(N,0.997)
+                boundary_u,boundary_l = self._ACF_mock_confidence_level(\
+                                        mock_data)
+                print boundary_u,boundary_l
+                popt,perr,xn,yn,r_squared = self._fitting_exp_sin(time,power)
+
+                ACF.plot_ACF(time,xerr_l,xerr_u,power,yerr_l,yerr_u,\
+                         boundary_u,boundary_l,band)
+                ACF.plot_fit_curve(xn,yn,band)
+                ACF.plot_year_estimate(popt,perr,r_squared,band)
+
+        ACF.savefig(self.output_dir+name,"/ACF.png",name)
+
+        '''
+        from plot import plot_ACF
+        from matplotlib import pyplot as plt
+        f,ax = plt.subplots(1,1,figsize=(12,3))
+        for band in band_list:
+            name_band = "%s_%s" % (name,band)
+            if os.path.exists("%s.dcf" % name_band):
+                data = np.genfromtxt("%s.dcf" % name_band,dtype=float)
+                os.system("rm %s.dcf" % name_band)
+                time = data[:,0]/365.
+                xerr_l = data[:,1]/365.
+                xerr_u = data[:,2]/365.
+                power = data[:,3]
+                yerr_l = data[:,4]
+                yerr_u = data[:,5]
+                N = data[:,6]
+                boundary_u,boundary_l =  self._confidence_level(N,0.997)
+
+                plot_ACF(ax,time,xerr_l,xerr_u,power,yerr_l,yerr_u,\
+                         boundary_u,boundary_l,band)
+        ax.set_xlabel("time(yr)")
+        ax.set_ylabel("ACF")
+        ax.legend()
+        f.tight_layout(rect=[0, 0.03, 1, 0.95])
+        f.suptitle(name)
+        f.savefig(self.output_dir+name+"/ACF.png",dpi=300)
+        '''
+
