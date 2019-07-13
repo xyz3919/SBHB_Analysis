@@ -41,7 +41,8 @@ if __name__ == '__main__':
     #analysis.analyze_lightcurve(quasar_catalog[510])
     #analysis.plot_periodogram_and_lightcurve(quasar_catalog[505])
     # 18,86,153,211,322,356,393,414,451,473,478,483,505,594
-    for i in [18,86,153,211,322,356,393,414,451,473,478,483,505,594]:
+    for i in [414]:
+    #for i in [18,86,153,211,322,356,393,414,451,473,478,483,505,594]:
         analysis.generate_ACF_results(quasar_catalog[i])
 
     stop = timeit.default_timer()

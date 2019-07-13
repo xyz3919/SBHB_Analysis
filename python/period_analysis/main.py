@@ -122,24 +122,47 @@ class analysis:
         yn = sin_func(xn, *popt)
         return xn, yn
 
-    def _exp_sin(self,x,T,tau):
+    def _exp_cos(self,x,T,tau):
         return np.cos(2*np.pi/T*x)*np.exp(-x/tau)
 
-    def _fitting_exp_sin(self, time, signal):
+    def _exp(self,x,tau):
+        return np.exp(-x/tau)
+
+    def _cos(self,x,T):
+        return np.cos(2*np.pi/T*x)
+
+    def _fitting_exp_cos(self, time, signal):
 
         p0 = [3 , 1 ]
-        popt, pcov = curve_fit(self._exp_sin,time,signal, p0=p0, \
+        popt, pcov = curve_fit(self._exp_cos,time,signal, p0=p0, \
                                bounds=(0,[20,20]),maxfev=5000)
         # calculate goodness of fit
-        residuals = signal- self._exp_sin(time, *popt)
+        residuals = signal- self._exp_cos(time, *popt)
         ss_res = np.sum(residuals**2)
         ss_tot = np.sum((signal-np.mean(signal))**2)
         r_squared = 1 - (ss_res / ss_tot)
 
         perr = np.sqrt(np.diag(pcov))
         xn = np.linspace(np.min(time)-0.1, np.max(time)+0.1, 10000)
-        yn = self._exp_sin(xn, *popt)
+        yn = self._exp_cos(xn, *popt)
         return popt,perr,xn,yn,r_squared
+
+    def _fitting_exp(self, time, signal):
+
+        p0 = 1
+        popt, pcov = curve_fit(self._cos,time,signal, p0=p0, \
+                               bounds=(0,20),maxfev=5000)
+        # calculate goodness of fit
+        residuals = signal- self._cos(time, *popt)
+        ss_res = np.sum(residuals**2)
+        ss_tot = np.sum((signal-np.mean(signal))**2)
+        r_squared = 1 - (ss_res / ss_tot)
+
+        perr = np.sqrt(np.diag(pcov))
+        xn = np.linspace(np.min(time)-0.1, np.max(time)+0.1, 10000)
+        yn = self._cos(xn, *popt)
+        return popt,perr,xn,yn,r_squared
+
 
     def clean_parameters_list(self, parameters_list):
 
@@ -687,6 +710,14 @@ class analysis:
     # Auto-correlation #
     ####################
 
+    def _lnlike(self,theta, x, y, yerr):
+        if len(theta) == 2:
+            model = self._exp_cos(x,*theta)
+        elif len(theta)  == 1:
+            model = self._cos(x,*theta)
+        inv_sigma2 = 1.0/(yerr**2)
+        return -0.5*(np.sum((y-model)**2*inv_sigma2 - np.log(inv_sigma2)))
+
     def _confidence_level(self,N,level=0.997):
 
         import scipy.special
@@ -757,7 +788,7 @@ class analysis:
         # read lightcurves and save to the right format
         for band in self.band_list: 
             self.run_ACF(name,band)
-            self.run_ACF(name,band,using_mock=True)
+            #self.run_ACF(name,band,using_mock=True)
 
         # plot ACF result
         
@@ -767,8 +798,8 @@ class analysis:
                               (self.output_dir+name,band)):
                 data = np.load("%s/real/acf_%s.npy" % \
                                (self.output_dir+name,band))
-                mock_data = np.load("%s/mock/acf_%s.npy" % \
-                                    (self.output_dir+name,band))
+                #mock_data = np.load("%s/mock/acf_%s.npy" % \
+                #                    (self.output_dir+name,band))
                 time = data[:,0]/365.
                 xerr_l = data[:,1]/365.
                 xerr_u = data[:,2]/365.
@@ -776,11 +807,17 @@ class analysis:
                 yerr_l = data[:,4]
                 yerr_u = data[:,5]
                 N = data[:,6]
-                #boundary_u,boundary_l =  self._confidence_level(N,0.997)
-                boundary_u,boundary_l = self._ACF_mock_confidence_level(\
-                                        mock_data)
+                boundary_u,boundary_l =  self._confidence_level(N,0.997)
+                #boundary_u,boundary_l = self._ACF_mock_confidence_level(\
+                #                        mock_data)
                 print boundary_u,boundary_l
-                popt,perr,xn,yn,r_squared = self._fitting_exp_sin(time,power)
+                popt,perr,xn,yn,r_squared = self._fitting_exp(time,power)
+                lnL =  self._lnlike(popt,time,power,(yerr_u-yerr_l)/2.)
+                print -2*lnL+len(popt)*np.log(len(power))
+
+                popt,perr,xn,yn,r_squared = self._fitting_exp_cos(time,power)
+                lnL =  self._lnlike(popt,time,power,(yerr_u-yerr_l/2.))
+                print -2*lnL+len(popt)*np.log(len(power))
 
                 ACF.plot_ACF(time,xerr_l,xerr_u,power,yerr_l,yerr_u,\
                          boundary_u,boundary_l,band)
