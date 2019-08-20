@@ -111,14 +111,15 @@ class analysis:
         return period_max,amp_max
 
 
-    def _fitting(self, time, signal, period):
+    def _fitting(self, time, signal, period, original=False):
 
         def sin_func(x, amplitude, ref_day, median):
             return amplitude*np.sin(2*np.pi*x/period+ref_day)+median
         p0 = [1, 50000, 20]
         popt, pcov = curve_fit(sin_func, time, signal, p0=p0)
 
-        xn = np.linspace(np.min(time)-100, np.max(time)+100, 10000)
+        if original: xn = time
+        else: xn = np.linspace(np.min(time)-100, np.max(time)+100, 10000)
         yn = sin_func(xn, *popt)
         return xn, yn
 
@@ -134,8 +135,8 @@ class analysis:
     def _fitting_exp_cos(self, time, signal):
 
         p0 = [3 , 1 ]
-        popt, pcov = curve_fit(self._exp_cos,time,signal, p0=p0, \
-                               bounds=(0,[20,20]),maxfev=5000)
+        popt, pcov = curve_fit(self._exp_cos,time,signal, p0=p0)#, \
+                               #bounds=(0,[20,20]),maxfev=5000)
         # calculate goodness of fit
         residuals = signal- self._exp_cos(time, *popt)
         ss_res = np.sum(residuals**2)
@@ -150,8 +151,8 @@ class analysis:
     def _fitting_exp(self, time, signal):
 
         p0 = 1
-        popt, pcov = curve_fit(self._cos,time,signal, p0=p0, \
-                               bounds=(0,20),maxfev=5000)
+        popt, pcov = curve_fit(self._cos,time,signal, p0=p0)#, \
+                               #bounds=(0,20),maxfev=5000)
         # calculate goodness of fit
         residuals = signal- self._cos(time, *popt)
         ss_res = np.sum(residuals**2)
@@ -261,6 +262,7 @@ class analysis:
         from plot import plot_posterior
         plot_posterior(np.exp(parameters_list_good),likelihood,\
                        band,mock_dir+"/post_%s.png" % band)
+        np.save("%s/drw_%s.npy" % (mock_dir,band),parameters_list_good)
 
         # make the mock light curves from DRW parameters
 
@@ -377,19 +379,15 @@ class analysis:
             confidence_level = float(stats.percentileofscore(\
                                      psd_mock_at_each_period[i],psd[i]))
             confidence_levels.append(100.-confidence_level)
-        if ACF: append = "ACF" 
+        if ACF: append = "ACF_" 
         else: append = ""
         self.save_period_confidence_level(period,confidence_levels,\
-                                   self.output_dir+self.name+"/confidence_"+\
-                                   append+"_"+band+".csv")
+                                   self.output_dir+self.name+"/confidence_"+band+".csv")
         return confidence_levels
 
-    def _load_confidence_level(self,name,band,ACF=True):
+    def _load_confidence_level(self,name,band):
 
-        if ACF: append = "ACF"
-        else: append = ""
-        data = np.genfromtxt(self.output_dir+name+"/confidence_"+append+\
-                             "_"+band+".csv",\
+        data = np.genfromtxt(self.output_dir+name+"/confidence_"+band+".csv",\
                              names=True,delimiter=",")
         return data
 
@@ -404,6 +402,71 @@ class analysis:
         xn, yn = self._fitting(time, signal, period_max)
 
         return xn,yn
+
+    def calculate_signal_sigma(self,time,signal,periods):
+
+        """ """
+        p0 = [1,50000,20]
+        S_N_list = []
+        for period in periods:
+            def sin_func(x, amplitude, ref_day, median):
+                return amplitude*np.sin(2*np.pi*x/period+ref_day)+median
+            popt, pcov = curve_fit(sin_func, time, signal, p0=p0)
+            fitted_signal = sin_func(time, *popt)
+            A = popt[0]
+            sigma = np.std(signal-fitted_signal)
+            S_N = A**2/2/sigma**2
+            S_N_list.append(S_N)
+
+        return S_N_list
+
+    def get_max_SN_ratio(self,name,band="g",periods=None):
+
+        a = np.genfromtxt("lightcurves/DES/%s/%s.csv" % (name,band),\
+                          names=True,delimiter=",")
+        b = np.genfromtxt("lightcurves/SDSS/%s/%s.csv" % (name,band),\
+                          names=True,delimiter=",")
+        c = np.concatenate([a,b])
+        time = c["mjd_obs"]
+        signal = c["mag_psf"]
+
+        Tspan = float( np.max(time) - np.min(time) )
+        Ndata = len(signal)
+        if periods is None:
+            periods = 1/np.linspace(1.0/Tspan, Ndata/(2.0*Tspan), 10*Ndata)
+            periods = periods[periods>1.5*365]
+            periods = periods[periods<Tspan/3.]
+        S_N_list = self.calculate_signal_sigma(c["mjd_obs"],c["mag_psf"],\
+                                               periods)
+        period_max = periods[np.where(S_N_list == np.max(S_N_list))[0]]
+        return period_max,np.max(S_N_list)
+
+    def show_signal_strength(self):
+
+        quasars = np.genfromtxt(self.stat_dir+"strong_candidates.csv",\
+                                names=True,delimiter=",",dtype=None)
+
+        for name in quasars["name"]:
+
+            self.name = name
+            real_dir = self.output_dir+name+"/real"
+            mock_dir = self.output_dir+name+"/mock"
+            print name
+ 
+            for band in self.band_list:
+                cutout = 0.3
+                period,psd,psd_error = np.load("%s/psd_%s.npy" % (real_dir,band))
+                psd_mock = np.load("%s/psds_%s.npy" % (mock_dir,band))
+                sig_level = self._calculate_confidence_level(\
+                            period,psd,psd_mock,band)
+                bool_array = np.array(sig_level)< cutout
+                period_within = (period > 500 ) & (period < max(period)/3.)
+                bool_array = period_within & bool_array
+                period_above = period[bool_array]
+                if len(period_above) == 0: print "%s band: None" % band
+                else:
+                    print "%s band: period = %s days, S/N = %s" % ((band,)+\
+                          self.get_max_SN_ratio(name,band,period_above))
 
 
     def plot_periodogram_and_lightcurve(self,quasar):
@@ -714,7 +777,8 @@ class analysis:
         if len(theta) == 2:
             model = self._exp_cos(x,*theta)
         elif len(theta)  == 1:
-            model = self._cos(x,*theta)
+            model = self._exp(x,*theta)
+            print x,y,yerr
         inv_sigma2 = 1.0/(yerr**2)
         return -0.5*(np.sum((y-model)**2*inv_sigma2 - np.log(inv_sigma2)))
 
@@ -810,13 +874,16 @@ class analysis:
                 boundary_u,boundary_l =  self._confidence_level(N,0.997)
                 #boundary_u,boundary_l = self._ACF_mock_confidence_level(\
                 #                        mock_data)
-                print boundary_u,boundary_l
+                """
                 popt,perr,xn,yn,r_squared = self._fitting_exp(time,power)
-                lnL =  self._lnlike(popt,time,power,(yerr_u-yerr_l)/2.)
+                lnL =  self._lnlike(popt,time,power,(yerr_u+yerr_l)/2.)
+                print popt
                 print -2*lnL+len(popt)*np.log(len(power))
-
+                """
+                 
                 popt,perr,xn,yn,r_squared = self._fitting_exp_cos(time,power)
-                lnL =  self._lnlike(popt,time,power,(yerr_u-yerr_l/2.))
+                lnL =  self._lnlike(popt,time,power,(yerr_u+yerr_l/2.))
+                print popt
                 print -2*lnL+len(popt)*np.log(len(power))
 
                 ACF.plot_ACF(time,xerr_l,xerr_u,power,yerr_l,yerr_u,\

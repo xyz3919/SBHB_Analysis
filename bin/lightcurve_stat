@@ -20,10 +20,10 @@ if __name__ == '__main__':
         number_epochs_DES.plot_histogram(lc_info["N_DES_"+band],band)
         number_epochs_SDSS.plot_histogram(lc_info["N_SDSS_"+band],band)
 
-    print ("Saving the DES number of epochs plot at 'plot/DES_epochs.png'")
-    print ("Saving the SDSS number of epochs plot at 'plot/SDSS_epochs.png'")
-    number_epochs_DES.savefig("plot/","DES_epochs.png",r"DES")
-    number_epochs_SDSS.savefig("plot/","SDSS_epochs.png",r"SDSS")
+    print ("Saving the DES number of epochs plot at 'plot/DES_epochs.eps'")
+    print ("Saving the SDSS number of epochs plot at 'plot/SDSS_epochs.eps'")
+    number_epochs_DES.savefig("plot/","DES_epochs.eps",r"DES")
+    number_epochs_SDSS.savefig("plot/","SDSS_epochs.eps",r"SDSS")
 
 
     # make clean sample (epoch_DES > 50, epoch_SDSS > 30, > 2 band)
@@ -32,7 +32,7 @@ if __name__ == '__main__':
     # plot the redshift and mag distribution
     redshift_mag = plot.plot(1,1,figsize=(8,6))
     redshift_mag.plot_redshift_mag(clean_sample["z"],clean_sample["mag_psf_i"])
-    redshift_mag.savefig("plot/","redshift_mag.png",\
+    redshift_mag.savefig("plot/","redshift_mag.eps",\
                          "",tight_layout=False)
 
     '''

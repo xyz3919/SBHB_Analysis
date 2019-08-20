@@ -31,19 +31,26 @@ if __name__ == '__main__':
     start = timeit.default_timer()
     analysis = main.analysis()
     quasar_catalog = analysis.read_quasar_catalog()
-    """
-    pool = mp.Pool(mp.cpu_count()*6/8)
-    pool.map(task,quasar_catalog)
+
+    #pool = mp.Pool(mp.cpu_count()*6/8)
+    #pool.map(task,quasar_catalog)
     #analysis.analyze_lightcurve(quasar_catalog)
 
-    """
     #analysis.test = True
-    #analysis.analyze_lightcurve(quasar_catalog[510])
+    analysis.analyze_lightcurve(quasar_catalog[226])
     #analysis.plot_periodogram_and_lightcurve(quasar_catalog[505])
     # 18,86,153,211,322,356,393,414,451,473,478,483,505,594
-    for i in [414]:
-    #for i in [18,86,153,211,322,356,393,414,451,473,478,483,505,594]:
-        analysis.generate_ACF_results(quasar_catalog[i])
+    # 18,86,155,214,325,359,396,417,454,476,481,486,508,597
+    #for i in [414]:
+    """
+    for i in 18,86,155,214,325,359,396,417,454,476,481,486,508,597:
+        name = quasar_catalog[i]["name"]
+        print name
+        for band in ["g","r","i","z"]:
+            print analysis.abc(name,band)
+    """
+
+    #    analysis.generate_ACF_results(quasar_catalog[i])
 
     stop = timeit.default_timer()
     useful_funcs.print_and_write("log_period_analysis",\

@@ -14,6 +14,7 @@ class plot:
 
     def __init__(self, cols, rows,**args):
 
+        plt.rc('font', family='serif')
         self.f,self.axes  = plt.subplots(cols, rows,**args)
         self.color_list = {"g":"g","r":"orange",\
                            "i":"brown","z":"purple"}
@@ -49,7 +50,7 @@ class plot:
         if band == "g" or  band == "i":
             ax.set_ylabel("Number of quasars",fontsize=14)
         ax.set_xlim(0,np.percentile(number_array,99)*1.05)
-        ax.text(0.95, 0.95, band,size=16,color=self.color_list[band],\
+        ax.text(0.95, 0.95, band,size=18,color=self.color_list[band],\
                 horizontalalignment='right',verticalalignment='top',\
                 transform = ax.transAxes)
 
@@ -63,9 +64,9 @@ class plot:
         elif camera == "DES": linestyle = "-" 
         self.axes.plot(x,y,label=camera+" "+band,linestyle=linestyle,\
                        c=self.color_list[band])
-        self.axes.set_xlabel("Wavelength(A)")
-        self.axes.set_ylabel("Truoghtout")
-        self.axes.legend(prop={'size': 10})
+        self.axes.set_xlabel("Wavelength(A)",fontsize=14)
+        self.axes.set_ylabel("Truoghtput",fontsize=14)
+        self.axes.legend(prop={'size': 12})
 
     def plot_redshift_mag(self,redshift_raw,mag_raw):
 

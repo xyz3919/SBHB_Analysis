@@ -17,7 +17,7 @@ echo export PYTHONPATH="${bin_path/bin/python}"$'/:$PYTHONPATH\n'>>setup.sourcem
 
 cd $eups_dir
 
-curl -O http://desbuild.cosmology.illinois.edu/desdm_eupsinstall.py
+curl -O http://desbuild2.cosmology.illinois.edu/desdm_eupsinstall.py
 python desdm_eupsinstall.py
 
 source ./eups/desdm_eups_setup.sh

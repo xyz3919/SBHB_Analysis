@@ -4,6 +4,8 @@ from scipy.signal import medfilt
 from astropy.io import fits,ascii
 from astropy.coordinates import SkyCoord
 from astropy import units as u
+import matplotlib
+matplotlib.use('Agg')
 import query 
 import query_PS # get PanSTARRS lightcurves
 import useful_funcs
@@ -211,8 +213,15 @@ class lc:
         # make and save PanSTARRS light curves
 
         dcolumns = ("""objID,detectID,filterID,obsTime,ra,dec,psfFlux,psfFluxErr,psfMajorFWHM,psfMinorFWHM,psfQfPerfect,apFlux,apFluxErr,infoFlag,infoFlag2,infoFlag3""").split(',')
-        dresults = query_PS.ps1cone(quasar["ra"],quasar["dec"],2./3600.,\
-                   table='detection',release='dr2',columns=dcolumns)
+        attempts = 0
+        while attempts < 3:
+            try:
+                dresults = query_PS.ps1cone(quasar["ra"],quasar["dec"],2./3600.,\
+                           table='detection',release='dr2',columns=dcolumns)
+                break
+            except requests.exceptions.HTTPError:
+                attempts += 1
+            time.sleep(60)
         if len(dresults) == 0: 
             print ("0 data points in Panstarrs ALL bands")
             self.save_line = self.save_line+",0,0,0,0"
@@ -253,19 +262,18 @@ class lc:
             return 0
         if data.size > 1:
             data.sort(order='mjd')
-
         for band in self.query_ZTF.band_list:
             data_band = data[data['filtercode'] == \
                         self.query_ZTF.band_name[band]]
             time = data_band["mjd"]
             mag = data_band["mag"]
             mag_error = data_band["magerr"]
-            if data_band.size == 0:
+            if (data_band) == 0:
                 print("0 data points in ZTF "+band+" band !!")
                 self.save_line = self.save_line+",0"
             else:
                 self._process_and_save(time,mag,mag_error,band)
-
+            print self.query_ZTF.band_list
         return 0
 
     ###########################
@@ -501,7 +509,9 @@ class spectra:
         self.dir_spec = "spectra/" # create dir for spectra
         useful_funcs.create_dir(self.dir_spec)
         self.band_list = ["g","r","i","z"]
+        self.filter_info = {"SDSS":{},"DES":{},"LCO":{}}
         self.get_DES_SDSS_bandpass()
+        self.get_LCO_bandpass()
 
 
     def get_SDSS_spectrum(self,ra,dec,dist=4):
@@ -531,8 +541,6 @@ class spectra:
 
     def get_DES_SDSS_bandpass(self):
         
-        info = {"SDSS":{},"DES":{}}
-
         # dowload SDSS bandpass
         url_filter_SDSS = "http://classic.sdss.org/dr3/instruments/imager/"+\
                           "filters/%s.dat"
@@ -548,14 +556,27 @@ class spectra:
         # load SDSS bandpass info
         for band in self.band_list:
             data_SDSS = np.genfromtxt(self.dir_filter+"SDSS_"+band+".dat")
-            info["SDSS"].update({band:data_SDSS[:,[0,1]]})
+            self.filter_info["SDSS"].update({band:data_SDSS[:,[0,1]]})
 
         # load DES bandpass info
         band_num = {"g":1,"r":2,"i":3,"z":4}
         data_DES = np.genfromtxt(self.dir_filter+"DES.dat")
         for band in self.band_list:
-            info["DES"].update({band:data_DES[:,[0,band_num[band]]]})
-        self.filter_info = info
+            self.filter_info["DES"].update({band:data_DES[:,[0,band_num[band]]]})
+
+    def get_LCO_bandpass(self):
+
+        # dowload SDSS bandpass
+        url_filter_LCO = "https://lco.global/documents/%s/sdss.%sp.txt"
+        band_number = {"g":10,"r":11,"i":12}
+        for band in self.band_list[0:3]:
+            useful_funcs.download_file(url_filter_LCO % (band_number[band],band),
+                                       self.dir_filter+"LCO_"+band+".dat")
+        for band in self.band_list[0:3]:
+            data_LCO = np.genfromtxt(self.dir_filter+"LCO_"+band+".dat",\
+                                     skip_header=1)
+            data_LCO[:,0] = data_LCO[:,0]*10
+            self.filter_info["LCO"].update({band:data_LCO})
 
     def spectrum_to_mag(self,lamb_spec,flux_spec,lamb_trans,ratio_trans):
 
@@ -595,6 +616,35 @@ class spectra:
             else: mag_diff.update({band:diff})
 
         return mag_diff
+
+    def mag_LCO_to_DES(self,name):
+
+        mag_diff = {}
+        if not os.path.isfile(self.dir_spec+name+".fits"):
+            for band in self.band_list[0:3] : mag_diff.update({band:0.0})
+            return mag_diff
+
+        hdul = fits.open(self.dir_spec+name+".fits")
+        data =  hdul[1].data
+        data_clean = data[(data["ivar"]>0) & (data["and_mask"] == 0)]
+
+        lambda_q = 10**data_clean["loglam"]
+        flux_q =  10**(-17)*data_clean["flux"]
+        for band in self.band_list[0:3] :
+            trans_LCO,trans_DES = self.filter_info["LCO"][band],\
+                                   self.filter_info["DES"][band]
+            mag_LCO =  self.spectrum_to_mag(lambda_q,flux_q,trans_LCO[:,0],\
+                                             trans_LCO[:,1])
+            mag_DES =  self.spectrum_to_mag(lambda_q,flux_q,trans_DES[:,0],\
+                                            trans_DES[:,1])
+            #print ("mag_SDSS: "+str(mag_SDSS)+" ; mag_DES: "+str(mag_DES))
+            diff = mag_DES-mag_LCO
+            print (band+": m_DES - m_LCO =" + str(diff))
+            if math.isnan(diff): mag_diff.update({band:0.0})
+            else: mag_diff.update({band:diff})
+
+        return mag_diff
+
 
 class lc_single:
 

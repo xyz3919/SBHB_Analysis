@@ -47,7 +47,7 @@ if __name__ == '__main__':
             x = info[camera][band][:,0]
             y = info[camera][band][:,1]
             f.plot_filter(x,y,band,camera)
-    f.savefig("plot/","throughput.png","DES vs. SDSS Throughput")
+    f.savefig("plot/","throughput.eps","DES vs. SDSS Throughput")
 
     # download the J0252 spectrum  
     
