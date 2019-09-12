@@ -43,8 +43,10 @@ class quasar_drw:
             self.__Tspan    = float( np.max(self.time) - np.min(self.time) )
             self.__Ndata    = len(self.signal)
             self.__psd_freq = \
-                np.linspace(1.0/self.__Tspan, self.__Ndata/(2.0*self.__Tspan), 10*self.__Ndata)
+                              np.linspace(1.0/self.__Tspan, 1./(0.75*365), self.__Ndata)
+               # np.linspace(1.0/self.__Tspan, self.__Ndata/(2.0*self.__Tspan), 10*self.__Ndata)
                # np.linspace(1.0/self.__Tspan, self.__Ndata/(2.0*self.__Tspan), self.__Ndata) 
+
             self.__dt = self.__Tspan / float(self.__Ndata)
             self.__df = self.__psd_freq[1] - self.__psd_freq[0]
         else:
@@ -191,6 +193,54 @@ class quasar_drw:
         return sampler.chain
 
 #        return [[tau_center,c_center,b_center]]
+
+    def fit_model_mcmc(self, nwalkers=500, burnin=150, Nstep=500,random_state=np.random.RandomState(0)):
+
+        ndim    = 3
+        pos     = []
+
+        z           = self.redshift
+        time        = self.time
+        signal      = self.signal
+        error       = self.error
+
+        # use most likely val as a initial guess
+        nll = lambda *args: -lnlike_drw(*args)
+        result = op.minimize(nll, [np.log(300.), np.log(0.1), np.log(np.mean(signal))], args=(self.time, self.signal, self.error, self.redshift),method="Nelder-Mead")
+        tau_center = np.exp(result["x"][0])
+        sigma_center   = np.exp(result["x"][1])
+        mean_center   = np.exp(result["x"][2])
+
+        print("Initial guess of (tau, c, b) = (" + format(np.exp(result["x"][0]), ".2f") + ", " \
+                                                 + format(np.exp(result["x"][1]), ".2e") + ", " \
+                                                 + format(np.exp(result["x"][2]), ".2f") + " )" )
+
+       ## initiate a gaussian distribution aroun dthe mean value
+        ## modify this part if needed
+        tau_sample = random_state.normal(loc=result["x"][0], scale=1, size=nwalkers)
+        sigma_sample   = random_state.normal(loc=result["x"][1],   scale=1, size=nwalkers)
+        mean_sample   = random_state.normal(loc=result["x"][2], scale= 0.1, size=nwalkers)
+
+        for i in range(nwalkers):
+            parameter = np.array([tau_sample[i], sigma_sample[i], mean_sample[i]])
+            pos.append(parameter)
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob_drw, args=(time, signal, error, z), a=2.0)
+
+        # import random state 
+        sampler.random_state = random_state.get_state()
+        # start MCMC
+        sampler.run_mcmc(pos, Nstep)
+    
+        # remove burn-in
+        burnin = burnin
+        #samples = sampler.chain[:, burnin:, :].reshape((-1, ndim))
+
+        ## depending on the preference, return whatever you prefer
+        return sampler.chain
+
+
+
+
 
     def generate_mock_lightcurve(self,tau,c,time,signal,z,random_state=np.random.RandomState(0)):
 
@@ -444,6 +494,113 @@ def lnprob(theta, time, signal, error, z):
         return lp+lk
     else:
         return -np.inf
+
+####################
+# model comparison #
+####################
+
+# set up posterior
+def lnprob_drw (theta, time, signal, error, z):
+    lp = lnprior_drw(theta, z, time)
+    lk = lnlike_drw(theta, time, signal, error, z)
+    lnprob_out = lp + lnlike(theta, time, signal, error, z)
+
+    if ( np.isfinite(lp) and np.isfinite(lk) ):
+        return lp+lk
+    else:
+        return -np.inf
+
+def lnprior_drw(theta, z, time):
+    # prior is determined in the rest frame, no need to multiply (1+z)
+    lntau, lnsigma, lnmean = theta
+    tau_fit, sigma_fit, mean_fit = np.exp(lntau), np.exp(lnsigma), np.exp(lnmean)
+    if tau_fit > 0.0 and 10 < mean_fit < 30 and 1.0 < tau_fit < (np.max(time)-np.min(time)): # mag
+        return 0.0
+    else:
+        return -np.inf
+
+
+def lnlike_periodic(theta, fit_time, fit_signal, fit_error, z):
+
+    t_ratio, t_shift, s_ratio, s_shift, drw_sigma, drw_tau = theta
+
+    fit = np.interp( fit_time, (sim_time*t_ratio)+t_shift, (sim_signal*s_ratio)+s_shift )
+    model = fit_signal - fit
+
+    """
+    cov_D     = np.zeros([len(fit_signal),  len(fit_signal)])
+    cov_sigma = np.zeros([len(fit_signal),  len(fit_signal)])
+
+
+    for i in range(len(fit_time)):
+        for j in range(len(fit_time)):
+            delta_t = np.abs(fit_time[i] - fit_time[j])
+            cov_D[i,j] = drw_sigma**2.0 * np.exp(- delta_t / drw_tau)
+
+            if (i==j):
+                cov_sigma[i,j] = fit_error[i]**2.0
+    cov        = cov_D + cov_sigma
+
+    """
+    fit_time_x,fit_time_y = np.meshgrid(fit_time,fit_time)
+    delta_t = np.abs(fit_time_x-fit_time_y)
+    cov = sigma**2.0 * np.exp(- delta_t / tau)
+    cov[np.arange(len(fit_time)),np.arange(len(fit_time))] = fit_error**2.0
+
+
+    #
+    cov_inverse = np.linalg.inv(cov)
+    chi_square  = np.dot( model, np.dot(cov_inverse, model) )
+
+    (sign, logdet) = np.linalg.slogdet( cov_D+cov_sigma )
+
+    lnlikeli = -0.5*logdet - 0.5*chi_square
+
+
+    return lnlikeli
+
+
+
+def lnlike_drw(theta, fit_time, fit_signal, fit_error, z):
+
+    tau, sigma, mean_mag = np.exp(theta)
+
+    model = fit_signal - mean_mag
+
+
+    """
+    cov_D     = np.zeros([len(fit_signal),  len(fit_signal)])
+    cov_sigma = np.zeros([len(fit_signal),  len(fit_signal)])
+
+
+    for i in range(len(fit_time)):
+        for j in range(len(fit_time)):
+            if (i!=j):
+                delta_t = np.abs(fit_time[i] - fit_time[j])
+                cov_D[i,j] = sigma**2.0 * np.exp(- delta_t / tau)
+
+            if (i==j):
+                cov_sigma[i,j] = fit_error[i]**2.0
+    cov        = cov_D + cov_sigma
+    """
+    fit_time_x,fit_time_y = np.meshgrid(fit_time,fit_time)
+    delta_t = np.abs(fit_time_x-fit_time_y)
+    cov = sigma**2.0 * np.exp(- delta_t / tau)
+    cov[np.arange(len(fit_time)),np.arange(len(fit_time))] = fit_error**2.0
+
+
+    #
+    cov_inverse = np.linalg.inv(cov)
+    chi_square  = np.dot( model, np.dot(cov_inverse, model) )
+
+    (sign, logdet) = np.linalg.slogdet( cov )
+
+    lnlikeli = -0.5*logdet - 0.5*chi_square
+
+
+    return lnlikeli
+
+
             
 ########################################
 ## ======== END MCMCfunction ======== ##

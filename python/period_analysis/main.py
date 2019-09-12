@@ -10,7 +10,7 @@ from javelin.lcmodel import Cont_Model
 from gatspy import datasets, periodic
 import carmcmc as cm
 from quasar_drw import quasar_drw as qso_drw
-from quasar_drw import lnlike
+from quasar_drw import lnlike,lnlike_drw
 from plot import plot
 import useful_funcs
 
@@ -33,6 +33,7 @@ class analysis:
         self.lc_names = ["mjd_obs", "mag_psf", "mag_err_psf"]
         self.period_lowerlim = 500
         self.test = False
+        self.large_mock = False
 
     def check_lightcurves_exist(self, name, band):
 
@@ -78,7 +79,8 @@ class analysis:
 
     def error_boostraping(self, lc, band):
 
-        if self.test is True: number_times = 100
+        if self.test : number_times = 100
+        elif self.large_mock : number_times = 10000
         else: number_times = 1000
         period_obs, signal_obs = lc.periodogram(lc.time, lc.signal)
         signal_boost = self.random_state.normal(lc.signal, lc.error, \
@@ -117,11 +119,13 @@ class analysis:
             return amplitude*np.sin(2*np.pi*x/period+ref_day)+median
         p0 = [1, 50000, 20]
         popt, pcov = curve_fit(sin_func, time, signal, p0=p0)
+        perr = np.sqrt(np.diag(pcov))
+        amp,amp_err = popt[0],perr[0]
 
         if original: xn = time
         else: xn = np.linspace(np.min(time)-100, np.max(time)+100, 10000)
         yn = sin_func(xn, *popt)
-        return xn, yn
+        return amp, amp_err, xn, yn
 
     def _exp_cos(self,x,T,tau):
         return np.cos(2*np.pi/T*x)*np.exp(-x/tau)
@@ -231,8 +235,10 @@ class analysis:
 
         #psd_mock_all = []
         # parameters
-        if self.test is True: 
-            nwalkers,burnin,Nsteps,draw_times = 100,50,100,100
+        if self.test : 
+            nwalkers,burnin,Nsteps,draw_times = 100,5,100,50
+        elif self.large_mock :
+            nwalkers,burnin,Nsteps,draw_times = 500,150,1000,50000
         else:
             nwalkers = 500
             burnin = 150
@@ -267,9 +273,12 @@ class analysis:
         # make the mock light curves from DRW parameters
 
         mock_lcs,mock_psds = [],[]
-        for i in range(draw_times):
-            tau,c,b = np.exp(parameters_list_good[self.random_state.randint(\
-                    len(parameters_list_good))])
+        index = self.random_state.choice(len(parameters_list_good),\
+                                        size=draw_times,replace=False)
+
+        #for i in range(draw_times):
+        for i in index:
+            tau,c,b = np.exp(parameters_list_good[i])
             mock_time,mock_signal = lc.generate_mock_lightcurve(tau,c,lc.time,\
                                     lc.signal,z,random_state=self.random_state)
             mock_lcs.append(mock_signal)
@@ -399,9 +408,9 @@ class analysis:
                              confidence_level["period"],\
                              100-confidence_level["confidence_level"])
         if len(period_max) > 1 : period_max = np.mean(period_max)
-        xn, yn = self._fitting(time, signal, period_max)
+        amp, amp_err, xn, yn = self._fitting(time, signal, period_max)
 
-        return xn,yn
+        return amp, amp_err, xn,yn
 
     def calculate_signal_sigma(self,time,signal,periods):
 
@@ -454,7 +463,7 @@ class analysis:
             print name
  
             for band in self.band_list:
-                cutout = 0.3
+                cutout = 0.26
                 period,psd,psd_error = np.load("%s/psd_%s.npy" % (real_dir,band))
                 psd_mock = np.load("%s/psds_%s.npy" % (mock_dir,band))
                 sig_level = self._calculate_confidence_level(\
@@ -467,6 +476,69 @@ class analysis:
                 else:
                     print "%s band: period = %s days, S/N = %s" % ((band,)+\
                           self.get_max_SN_ratio(name,band,period_above))
+
+    def read_total_lightcurve(self,name,band):
+
+        a = np.genfromtxt("lightcurves/DES/%s/%s.csv" % (name,band),\
+                          names=True,delimiter=",")
+        b = np.genfromtxt("lightcurves/SDSS/%s/%s.csv" % (name,band),\
+                          names=True,delimiter=",")
+        c = np.concatenate([a,b])
+        time = c["mjd_obs"]
+        signal = c["mag_psf"]
+        error = c["mag_err_psf"]
+
+        return time,signal,error
+
+    def show_best_candidate(self,name):
+
+        """  Showing the properties of the best candidates """
+        print ("-- %s --" % name)
+
+        catalog = self.read_quasar_catalog()
+        info = catalog[catalog["name"] == name]
+        print ("z: %s" % info["z"])
+
+        amps,errs = [],[]
+        for band in self.band_list:
+            time,signal,error = self.read_total_lightcurve(name,band)
+            amp, amp_err, xn, yn = self._get_fit_curve(time,signal,name,band)
+            amps.append(amp)
+            errs.append(amp_err)
+            self.model_comparison(time,signal,error,band,info["z"])
+        print ("Amp: %.3f, %.3f, %.3f, %.3f" % tuple(amps))
+        print ("Err_Amp: %.3f, %.3f, %.3f , %.3f" % tuple(errs))
+
+
+    def model_comparison(self,time,signal,error,band,z):
+        
+        # model comparison
+
+        # drw only  model
+
+        lc = qso_drw(time,signal,error,z,preprocess=False)
+        nwalkers,burnin,Nsteps,draw_times = 500,100,500,500
+
+        samples =  lc.fit_model_mcmc(nwalkers=nwalkers, burnin=burnin,\
+                           Nstep=Nsteps)
+        parameters_list = samples[:, burnin:, :].reshape((-1, 3))
+
+        # remove top 5% and bottome 5%
+        parameters_list_good = self.clean_parameters_list(parameters_list)
+
+        # plot posterior
+        theta = [parameters_list_good[:,0],parameters_list_good[:,1],\
+                 parameters_list_good[:,2]]
+        likelihood = []
+        for theta in parameters_list_good:
+            likelihood.append(lnlike_drw(theta,lc.time,lc.signal,lc.error,z))
+        from plot import plot_posterior
+        plot_posterior(np.exp(parameters_list_good),likelihood, band,\
+                       "post_%s.png" % band,combine=False)
+
+        print(np.max(likelihood))
+
+
 
 
     def plot_periodogram_and_lightcurve(self,quasar):
@@ -487,10 +559,10 @@ class analysis:
                 psd_mock = np.load("%s/psds_%s.npy" % (mock_dir,band))
                 significance_level = self._calculate_confidence_level(\
                                      period,psd,psd_mock,band)
-                periodogram.plot_periodogram(period, psd,band)
-                periodogram.plot_boost_periodogram(period, psd, psd_error, band)
-                periodogram.plot_confidence_level(period, psd_mock, band)
                 periodogram.plot_mock_periodogram(period, psd_mock, band)
+                periodogram.plot_confidence_level(period,psd_mock,band)
+                periodogram.plot_periodogram(period,psd,band)
+                periodogram.plot_boost_periodogram(period,psd,psd_error,band)
                 periodogram.plot_peak_period(period, significance_level,band)
         periodogram.savefig(self.output_dir+name,"/periodogram.png",name)
 
@@ -512,7 +584,7 @@ class analysis:
                 time,signal,error = np.load("%s/lc_%s.npy" % \
                                     (real_dir,band))
                 signal_mock = np.load("%s/lcs_%s.npy" % (mock_dir,band))
-                xn, yn = self._get_fit_curve(time,signal,name,band)
+                amp, amp_err, xn, yn = self._get_fit_curve(time,signal,name,band)
                 lightcurve.plot_fit_curve(xn,yn,band)
         lightcurve.savefig(self.output_dir+name,"/lightcurve.png",name)
 
@@ -626,7 +698,7 @@ class analysis:
                         print ("Can not find the peak value !!")
                     else:
                         periodogram.plot_peak_period(period_max,band)
-                        xn,yn = self._fitting(lc.time,lc.signal,lc.error,period_max)
+                        amp, amp_err, xn,yn = self._fitting(lc.time,lc.signal,lc.error,period_max)
                         lightcurve.plot_fit_curve(xn,yn,band)
                     lightcurves_total.append(np.array([lc.time,lc.signal,\
                                              lc.error,[band]*len(lc.time)])) 
@@ -688,7 +760,7 @@ class analysis:
         for index, row in cand.iterrows():
             yes = 0
             for band in self.band_list:
-                if row["peak_"+band]<0.3:
+                if row["peak_"+band]<0.26:
                     yes= yes+1
             cand.at[index,"yes"] = yes
         strong_cand = cand[cand["yes"]>1]

@@ -94,7 +94,7 @@ class plot:
                       "i":"brown","z":"purple"}
         ax = ax_list[band]
         for psd in psds:
-            ax.plot(_freq/365,psd,label=band,c="grey",linewidth=0.01)
+            ax.plot(_freq/365,psd,label=band,c="lightgrey",linewidth=0.001)
 
     def plot_boost_periodogram(self,_freq, psd,error,band):
 
@@ -109,7 +109,7 @@ class plot:
 
     def plot_peak_period(self,period, sig_level, band):
 
-        cutout = 0.3
+        cutout = 0.26
         ax = self.ax_list[band]
 
         bool_array = np.array(sig_level)< cutout 
@@ -132,7 +132,7 @@ class plot:
         percentiles = [68.27,95.45,99.0,99.74,99.99]
         for percentile in percentiles:
            bounday_psd_at_each__freq = [np.percentile(psd,percentile) for psd in psd_at_each__freq]
-           ax.plot(_freq/365,bounday_psd_at_each__freq,"--",c="black",linewidth=0.5)
+           ax.plot(_freq/365,bounday_psd_at_each__freq,"--",c="black",linewidth=1)
 
 
 
@@ -231,16 +231,18 @@ class plot:
 
     def savefig(self,dir_output,name,title):
 
-        self.f.tight_layout(rect=[0, 0.03, 1, 0.95])
+        self.f.tight_layout(pad=1.05,rect=[0, 0.03, 1, 0.95])
         self.f.suptitle(title)
         self.f.savefig(dir_output+name,dpi=200)
         plt.close(self.f)
 
 
-def plot_posterior(samples,likelihood,band,save_path):
+def plot_posterior(samples,likelihood,band,save_path,combine=True):
 
-    samples[:,1] = samples[:,1]*samples[:,0]/2
-    samples[:,2] = samples[:,2]*samples[:,0]
+    if combine:
+        samples[:,1] = samples[:,1]*samples[:,0]/2
+        samples[:,2] = samples[:,2]*samples[:,0]
+
     samples[:,0:2] = np.log10(samples[:,0:2])
     #print list(samples[:,2])
     import corner

@@ -1,0 +1,21 @@
+#!/usr/bin/env python
+# 
+import numpy as np
+from period_analysis import main
+import useful_funcs
+import timeit
+
+
+if __name__ == '__main__':
+
+
+    start = timeit.default_timer()
+
+    analysis = main.analysis()
+
+    analysis.show_best_candidate("J024613.89-004028.2")
+    #analysis.show_best_candidate("J024703.24-010032.0")
+    #analysis.show_best_candidate("J024944.66-000036.8")
+
+    stop = timeit.default_timer()
+    print("Execution Time:"+str((stop-start)/60.)+" mins")
