@@ -242,8 +242,9 @@ def plot_posterior(samples,likelihood,band,save_path,combine=True):
     if combine:
         samples[:,1] = samples[:,1]*samples[:,0]/2
         samples[:,2] = samples[:,2]*samples[:,0]
-
-    samples[:,0:2] = np.log10(samples[:,0:2])
+    else:
+        samples[:,1] = samples[:,1]**2
+        samples[:,0:2] = np.log10(samples[:,0:2])
     #print list(samples[:,2])
     import corner
     ndim = 3
@@ -274,6 +275,43 @@ def plot_posterior(samples,likelihood,band,save_path,combine=True):
             ax.plot(maxlike[xi], maxlike[yi], "sg")
     fig.suptitle(band)
     fig.savefig(save_path)
+
+def plot_posterior_drw_periodic(samples,likelihood,band,save_path):
+
+    samples[:,5] = samples[:,5]**2
+    samples[:,4:6] = np.log10(samples[:,4:6])
+    #print list(samples[:,2])
+    import corner
+    ndim = 6
+    axrange = []
+    sigma = np.std(samples,axis=0)
+    median = np.median(samples,axis=0)
+    maxlike = samples[likelihood == np.max(likelihood)][0]
+#    for i in range(ndim):
+#        axrange.append((median[i]-3*sigma[i],median[i]+3*sigma[i]))
+    fig = corner.corner(samples,labels=[r"t_ratio", r"t_shift", \
+                        r"s_ratio", r"s_shift",r"$log(\tau[days])$",\
+                        r"$log(var[mag])$"],\
+                        quantiles=[0.16, 0.5, 0.84],\
+                        show_titles=True, title_kwargs={"fontsize": 12},\
+                        plot_datapoints=False,levels=(1-np.exp(-0.5),))
+                        #range = axrange)
+    axes = np.array(fig.axes).reshape((ndim, ndim))
+#    value = np.median(samples, axis=0)
+    # for the diagonal histograms
+    for i in range(ndim):
+        ax = axes[i, i]
+        ax.axvline(maxlike[i], color="g")
+    # for the 2-D posterior contours
+    for yi in range(ndim):
+        for xi in range(yi):
+            ax = axes[yi, xi]
+            ax.axvline(maxlike[xi], color="g")
+            ax.axhline(maxlike[yi], color="g")
+            ax.plot(maxlike[xi], maxlike[yi], "sg")
+    fig.suptitle(band)
+    fig.savefig(save_path)
+
 
 def plot_posterior_carma(samples,band,save_path):
 

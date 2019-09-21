@@ -194,7 +194,7 @@ class quasar_drw:
 
 #        return [[tau_center,c_center,b_center]]
 
-    def fit_model_mcmc(self, nwalkers=500, burnin=150, Nstep=500,random_state=np.random.RandomState(0)):
+    def fit_drw_model_mcmc(self, nwalkers=500, burnin=150, Nstep=500,random_state=np.random.RandomState(0)):
 
         ndim    = 3
         pos     = []
@@ -206,24 +206,26 @@ class quasar_drw:
 
         # use most likely val as a initial guess
         nll = lambda *args: -lnlike_drw(*args)
-        result = op.minimize(nll, [np.log(300.), np.log(0.1), np.log(np.mean(signal))], args=(self.time, self.signal, self.error, self.redshift),method="Nelder-Mead")
+        result = op.minimize(nll, [np.log(300.), np.log(1), np.log(np.mean(signal))], args=(self.time, self.signal, self.error, self.redshift),method="Nelder-Mead")
         tau_center = np.exp(result["x"][0])
         sigma_center   = np.exp(result["x"][1])
         mean_center   = np.exp(result["x"][2])
 
-        print("Initial guess of (tau, c, b) = (" + format(np.exp(result["x"][0]), ".2f") + ", " \
-                                                 + format(np.exp(result["x"][1]), ".2e") + ", " \
-                                                 + format(np.exp(result["x"][2]), ".2f") + " )" )
+        print("Initial guess of (tau, sigma, mean) = "+\
+              "( %.2f, %.2f, %.2f )" % tuple(np.exp(result["x"]))
+              )
 
        ## initiate a gaussian distribution aroun dthe mean value
         ## modify this part if needed
-        tau_sample = random_state.normal(loc=result["x"][0], scale=1, size=nwalkers)
-        sigma_sample   = random_state.normal(loc=result["x"][1],   scale=1, size=nwalkers)
-        mean_sample   = random_state.normal(loc=result["x"][2], scale= 0.1, size=nwalkers)
+        pos = random_state.normal(loc=result["x"], scale=[1,1,0.01],\
+                                  size=[nwalkers,len(result["x"])])
+        #tau_sample = random_state.normal(loc=result["x"][0], scale=1, size=nwalkers)
+        #sigma_sample   = random_state.normal(loc=result["x"][1],   scale=1, size=nwalkers)
+        #mean_sample   = random_state.normal(loc=result["x"][2], scale= 0.1, size=nwalkers)
 
-        for i in range(nwalkers):
-            parameter = np.array([tau_sample[i], sigma_sample[i], mean_sample[i]])
-            pos.append(parameter)
+        #for i in range(nwalkers):
+        #    parameter = np.array([tau_sample[i], sigma_sample[i], mean_sample[i]])
+        #    pos.append(parameter)
         sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob_drw, args=(time, signal, error, z), a=2.0)
 
         # import random state 
@@ -233,11 +235,73 @@ class quasar_drw:
     
         # remove burn-in
         burnin = burnin
-        #samples = sampler.chain[:, burnin:, :].reshape((-1, ndim))
 
         ## depending on the preference, return whatever you prefer
         return sampler.chain
 
+    def fit_periodic_model_mcmc(self, nwalkers=500, burnin=150, Nstep=500,random_state=np.random.RandomState(0),model="sin"):
+
+        ndim    = 6
+        pos     = []
+
+        z           = self.redshift
+        time        = self.time
+        signal      = self.signal
+        error       = self.error
+
+        #q_data_path = "accretion"
+        q_data_path = "."
+
+        if model == "sin":
+            self.sim_time = np.linspace(0,10,1000)
+            self.sim_signal = np.sin(self.sim_time*2*np.pi)
+        elif model == "q011" or model == "q043":
+            data1 = np.genfromtxt("%s/%s_primary.csv" % (q_data_path,model),dtype=float,delimiter=",")
+            data2 = np.genfromtxt("%s/%s_secondary.csv" % (q_data_path,model),dtype=float,delimiter=",")
+            self.sim_time = data1[:,0]
+            self.sim_time = self.sim_time-np.min(self.sim_time)
+            self.sim_signal = data1[:,1]+data2[:,1]
+            self.sim_signal = self.sim_signal - np.mean(self.sim_signal)
+            
+
+        #ini_pars = [np]
+
+        # use most likely val as a initial guess
+        nll = lambda *args: -lnprob_periodic(*args)
+        result = op.minimize(nll, [np.log(1000),np.log(50000),np.log(0.3),np.log(np.mean(signal)), np.log(0.01), np.log(300)], args=(self.time, self.signal, self.error, self.sim_time, self.sim_signal, self.redshift),method="Nelder-Mead")
+        #tau_center = np.exp(result["x"][0])
+        #sigma_center   = np.exp(result["x"][1])
+        #mean_center   = np.exp(result["x"][2])
+
+        print("Initial guess of (t_ratio, t_shift, s_ratio, s_shift, "+\
+              "sigma, tau) = ( %.2f, %.2e, %.2f, %.2f, %.2f, %.2f )" % \
+              tuple(np.exp(result["x"]))
+              )
+
+       ## initiate a gaussian distribution aroun dthe mean value
+        ## modify this part if needed
+        pos = random_state.normal(loc=result["x"], scale=[0.1,0.01,0.5,0.01,1,1],\
+                                  size=[nwalkers,len(result["x"])]) 
+
+        #tau_sample = random_state.normal(loc=result["x"][0], scale=1, size=nwalkers)
+        #sigma_sample   = random_state.normal(loc=result["x"][1],   scale=1, size=nwalkers)
+        #mean_sample   = random_state.normal(loc=result["x"][2], scale= 0.1, size=nwalkers)
+
+        #for i in range(nwalkers):
+        #    parameter = np.array([tau_sample[i], sigma_sample[i], mean_sample[i]])
+        #    pos.append(parameter)
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob_periodic, args=(time, signal, error, self.sim_time, self.sim_signal, z), a=2.0)
+
+        # import random state 
+        sampler.random_state = random_state.get_state()
+        # start MCMC
+        sampler.run_mcmc(pos, Nstep)
+    
+        # remove burn-in
+        burnin = burnin
+
+        ## depending on the preference, return whatever you prefer
+        return sampler.chain
 
 
 
@@ -503,7 +567,7 @@ def lnprob(theta, time, signal, error, z):
 def lnprob_drw (theta, time, signal, error, z):
     lp = lnprior_drw(theta, z, time)
     lk = lnlike_drw(theta, time, signal, error, z)
-    lnprob_out = lp + lnlike(theta, time, signal, error, z)
+    #lnprob_out = lp + lnlike(theta, time, signal, error, z)
 
     if ( np.isfinite(lp) and np.isfinite(lk) ):
         return lp+lk
@@ -519,10 +583,35 @@ def lnprior_drw(theta, z, time):
     else:
         return -np.inf
 
+def lnprob_periodic (theta, time, signal, error, sim_time, sim_signal, z):
+    lp = lnprior_periodic(theta, z, time)
+    lk = lnlike_periodic(theta, time, signal, error, sim_time, sim_signal, z)
+    #lnprob_out = lp + lnlike(theta, time, signal, error, z)
 
-def lnlike_periodic(theta, fit_time, fit_signal, fit_error, z):
+    if ( np.isfinite(lp) and np.isfinite(lk) ):
+        return lp+lk
+    else:
+        return -np.inf
 
-    t_ratio, t_shift, s_ratio, s_shift, drw_sigma, drw_tau = theta
+def lnprior_periodic(theta, z, time):
+    # prior is determined in the rest frame, no need to multiply (1+z)
+    lnt_ratio, lnt_shift, lns_ratio, lns_shift, lndrw_sigma, lndrw_tau = theta
+    t_ratio, t_shift, s_ratio, s_shift, drw_sigma, drw_tau = np.exp(lnt_ratio),\
+        np.exp(lnt_shift), np.exp(lns_ratio), \
+        np.exp(lns_shift), np.exp(lndrw_sigma), np.exp(lndrw_tau)
+
+    if drw_tau > 0.0  and 1.0 < drw_tau < (np.max(time)-np.min(time)) and \
+       10 < s_shift < 30 and 0.01 < s_ratio < 5 and 50000 < t_shift < 50000+t_ratio and\
+       500. < t_ratio < (np.max(time)-np.min(time))/3. : # mag
+        return 0.0
+    else:
+        return -np.inf
+    
+
+
+def lnlike_periodic(theta, fit_time, fit_signal, fit_error, sim_time, sim_signal, z):
+
+    t_ratio, t_shift, s_ratio, s_shift, drw_sigma, drw_tau = np.exp(theta)
 
     fit = np.interp( fit_time, (sim_time*t_ratio)+t_shift, (sim_signal*s_ratio)+s_shift )
     model = fit_signal - fit
@@ -544,15 +633,15 @@ def lnlike_periodic(theta, fit_time, fit_signal, fit_error, z):
     """
     fit_time_x,fit_time_y = np.meshgrid(fit_time,fit_time)
     delta_t = np.abs(fit_time_x-fit_time_y)
-    cov = sigma**2.0 * np.exp(- delta_t / tau)
-    cov[np.arange(len(fit_time)),np.arange(len(fit_time))] = fit_error**2.0
+    cov = drw_sigma**2.0 * np.exp(- delta_t / drw_tau)
+    cov[np.arange(len(fit_time)),np.arange(len(fit_time))] += fit_error**2.0
 
 
     #
     cov_inverse = np.linalg.inv(cov)
     chi_square  = np.dot( model, np.dot(cov_inverse, model) )
 
-    (sign, logdet) = np.linalg.slogdet( cov_D+cov_sigma )
+    (sign, logdet) = np.linalg.slogdet( cov )
 
     lnlikeli = -0.5*logdet - 0.5*chi_square
 
@@ -586,7 +675,7 @@ def lnlike_drw(theta, fit_time, fit_signal, fit_error, z):
     fit_time_x,fit_time_y = np.meshgrid(fit_time,fit_time)
     delta_t = np.abs(fit_time_x-fit_time_y)
     cov = sigma**2.0 * np.exp(- delta_t / tau)
-    cov[np.arange(len(fit_time)),np.arange(len(fit_time))] = fit_error**2.0
+    cov[np.arange(len(fit_time)),np.arange(len(fit_time))] += fit_error**2.0
 
 
     #

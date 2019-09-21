@@ -10,7 +10,7 @@ from javelin.lcmodel import Cont_Model
 from gatspy import datasets, periodic
 import carmcmc as cm
 from quasar_drw import quasar_drw as qso_drw
-from quasar_drw import lnlike,lnlike_drw
+from quasar_drw import lnlike,lnlike_drw,lnlike_periodic
 from plot import plot
 import useful_funcs
 
@@ -494,6 +494,7 @@ class analysis:
 
         """  Showing the properties of the best candidates """
         print ("-- %s --" % name)
+        self.name = name
 
         catalog = self.read_quasar_catalog()
         info = catalog[catalog["name"] == name]
@@ -513,13 +514,13 @@ class analysis:
     def model_comparison(self,time,signal,error,band,z):
         
         # model comparison
-
-        # drw only  model
-
         lc = qso_drw(time,signal,error,z,preprocess=False)
-        nwalkers,burnin,Nsteps,draw_times = 500,100,500,500
+        #nwalkers,burnin,Nsteps,draw_times = 500,100,500,500
+        nwalkers, burnin, Nsteps, draw_times = 1000,200,1000,100
 
-        samples =  lc.fit_model_mcmc(nwalkers=nwalkers, burnin=burnin,\
+        # DRW only model
+
+        samples =  lc.fit_drw_model_mcmc(nwalkers=nwalkers, burnin=burnin,\
                            Nstep=Nsteps)
         parameters_list = samples[:, burnin:, :].reshape((-1, 3))
 
@@ -527,17 +528,86 @@ class analysis:
         parameters_list_good = self.clean_parameters_list(parameters_list)
 
         # plot posterior
-        theta = [parameters_list_good[:,0],parameters_list_good[:,1],\
-                 parameters_list_good[:,2]]
+        theta = parameters_list_good.T
+        #theta = [parameters_list_good[:,0],parameters_list_good[:,1],\
+        #         parameters_list_good[:,2]]
         likelihood = []
-        for theta in parameters_list_good:
-            likelihood.append(lnlike_drw(theta,lc.time,lc.signal,lc.error,z))
+        for theta_i in parameters_list_good:
+            likelihood.append(lnlike_drw(theta_i,lc.time,lc.signal,lc.error,z))
         from plot import plot_posterior
         plot_posterior(np.exp(parameters_list_good),likelihood, band,\
-                       "post_%s.png" % band,combine=False)
+                       "cands/post_drw_%s_%s.png" % (self.name, band) ,combine=False)
+        print("BIC(drw) : %s" %self.calculate_BIC(np.max(likelihood),3,len(lc.time)))
 
-        print(np.max(likelihood))
 
+        # DRW+periodic model
+
+        samples =  lc.fit_periodic_model_mcmc(nwalkers=nwalkers, burnin=burnin,\
+                           Nstep=Nsteps,model="sin")
+        parameters_list = samples[:, burnin:, :].reshape((-1, 6))
+
+        # remove top 5% and bottome 5%
+        parameters_list_good = self.clean_parameters_list(parameters_list)
+
+        # plot posterior
+        theta = parameters_list_good.T
+        #theta = [parameters_list_good[:,0],parameters_list_good[:,1],\
+        #         parameters_list_good[:,2]]
+        likelihood = []
+        for theta_i in parameters_list_good:
+            likelihood.append(lnlike_periodic(theta_i,lc.time,lc.signal,lc.error,lc.sim_time,lc.sim_signal,z))
+        from plot import plot_posterior_drw_periodic
+        plot_posterior_drw_periodic(np.exp(parameters_list_good),likelihood, band,\
+                       "cands/post_sin_%s_%s.png" % (self.name, band))
+        print("BIC(sin) : %s" % self.calculate_BIC(np.max(likelihood),6,len(lc.time)))
+
+       # q11
+
+        samples =  lc.fit_periodic_model_mcmc(nwalkers=nwalkers, burnin=burnin,\
+                           Nstep=Nsteps,model="q011")
+        parameters_list = samples[:, burnin:, :].reshape((-1, 6))
+
+        # remove top 5% and bottome 5%
+        parameters_list_good = self.clean_parameters_list(parameters_list)
+
+        # plot posterior
+        theta = parameters_list_good.T
+        #theta = [parameters_list_good[:,0],parameters_list_good[:,1],\
+        #         parameters_list_good[:,2]]
+        likelihood = []
+        for theta_i in parameters_list_good:
+            likelihood.append(lnlike_periodic(theta_i,lc.time,lc.signal,lc.error,lc.sim_time,lc.sim_signal,z))
+        from plot import plot_posterior_drw_periodic
+        plot_posterior_drw_periodic(np.exp(parameters_list_good),likelihood, band,\
+                       "cands/post_q11_%s_%s.png" % (self.name, band))
+        print("BIC(q011) : %s" % self.calculate_BIC(np.max(likelihood),6,len(lc.time)))
+
+       # q34
+
+        samples =  lc.fit_periodic_model_mcmc(nwalkers=nwalkers, burnin=burnin,\
+                           Nstep=Nsteps,model="q043")
+        parameters_list = samples[:, burnin:, :].reshape((-1, 6))
+
+        # remove top 5% and bottome 5%
+        parameters_list_good = self.clean_parameters_list(parameters_list)
+
+        # plot posterior
+        theta = parameters_list_good.T
+        #theta = [parameters_list_good[:,0],parameters_list_good[:,1],\
+        #         parameters_list_good[:,2]]
+        likelihood = []
+        for theta_i in parameters_list_good:
+            likelihood.append(lnlike_periodic(theta_i,lc.time,lc.signal,lc.error,lc.sim_time,lc.sim_signal,z))
+        from plot import plot_posterior_drw_periodic
+        plot_posterior_drw_periodic(np.exp(parameters_list_good),likelihood, band,\
+                       "cands/post_q43_%s_%s.png" % (self.name, band))
+        print("BIC(q043) : %s" % self.calculate_BIC(np.max(likelihood),6,len(lc.time)))
+
+
+
+
+    def calculate_BIC(self,likelihood,k,N):
+        return -2*np.log(likelihood)+k*np.log(N)
 
 
 

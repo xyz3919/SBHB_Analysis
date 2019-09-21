@@ -578,16 +578,31 @@ class spectra:
             data_LCO[:,0] = data_LCO[:,0]*10
             self.filter_info["LCO"].update({band:data_LCO})
 
-    def spectrum_to_mag(self,lamb_spec,flux_spec,lamb_trans,ratio_trans):
+    def spectrum_to_mag(self,lamb_spec,flux_spec,ivar_spec,lamb_trans,ratio_trans):
 
         c = 3*10**10*10**8 # A/s
         ratio_spec = np.interp(lamb_spec,lamb_trans,ratio_trans)
-        STL = flux_spec*lamb_spec*ratio_spec
-        T_L = ratio_spec/lamb_spec
+        STL = flux_spec*lamb_spec*ratio_spec#*ivar_spec
+        T_L = ratio_spec/lamb_spec#*ivar_spec
         f_nu = 1./c*np.trapz(STL,x=lamb_spec)/np.trapz(T_L,x=lamb_spec)
         m_AB = -2.5*np.log10(f_nu)-48.6
 
         return m_AB
+
+    def calculate_diff_err(self,lamb_spec,flux_spec,ivar_spec,trans):
+
+        n = 100
+        sample_flux_spec = np.random.normal(loc=flux_spec,scale=np.sqrt(1/ivar_spec),\
+                                           size=[n,len(flux_spec)])
+        mag_all = []
+        for i in range(n):
+            mag = self.spectrum_to_mag(lamb_spec,sample_flux_spec[i],ivar_spec,\
+                                       trans[:,0],trans[:,1])
+            mag_all.append(mag)
+        mag_all = np.array(mag_all)
+        mag_all = mag_all[~np.isnan(mag_all)]
+
+        return np.std(mag_all)
 
     def mag_SDSS_to_DES(self,name):
 
@@ -599,19 +614,28 @@ class spectra:
         hdul = fits.open(self.dir_spec+name+".fits")
         data =  hdul[1].data
         data_clean = data[(data["ivar"]>0) & (data["and_mask"] == 0)]
+        #data_clean = data_clean[np.abs(data_clean["flux"]*np.sqrt(data_clean["ivar"])) > 3]
+        #data_clean = data_clean[np.sqrt(data_clean["ivar"]).]
 
         lambda_q = 10**data_clean["loglam"]
-        flux_q =  10**(-17)*data_clean["flux"]
+        #flux_q =  10**(-17)*data_clean["flux"]
+        flux_q   = 10**(-17)*data_clean["model"] 
+        ivar_q = data_clean["ivar"]/10**(-34)
         for band in self.band_list :
             trans_SDSS,trans_DES = self.filter_info["SDSS"][band],\
                                    self.filter_info["DES"][band]
-            mag_SDSS =  self.spectrum_to_mag(lambda_q,flux_q,trans_SDSS[:,0],\
-                                             trans_SDSS[:,1])
-            mag_DES =  self.spectrum_to_mag(lambda_q,flux_q,trans_DES[:,0],\
-                                            trans_DES[:,1])
+            mag_SDSS =  self.spectrum_to_mag(lambda_q,flux_q,ivar_q,\
+                                             trans_SDSS[:,0],trans_SDSS[:,1])
+            mag_DES =  self.spectrum_to_mag(lambda_q,flux_q,ivar_q, \
+                                            trans_DES[:,0],trans_DES[:,1])
+            err_SDSS = self.calculate_diff_err(lambda_q,flux_q,ivar_q,\
+                                               trans_SDSS)
+            err_DES = self.calculate_diff_err(lambda_q,flux_q,ivar_q,\
+                                              trans_DES)
             #print ("mag_SDSS: "+str(mag_SDSS)+" ; mag_DES: "+str(mag_DES))
             diff = mag_DES-mag_SDSS
-            print (band+": m_DES - m_SDSS =" + str(diff))
+            err_diff = np.sqrt(err_SDSS**2+err_DES**2)
+            print ("%s: m_DES - m_SDSS = %.3f +- %.3f" % (band,diff,err_diff ))
             if math.isnan(diff): mag_diff.update({band:0.0})
             else: mag_diff.update({band:diff})
 
@@ -667,6 +691,7 @@ class lc_single:
                                 dec=objects["dec"]*u.degree)
         dist = coor_quasar.separation(coor_objects)
         matched_quasars = objects[dist<1.0*u.arcsec ]
+        #matched_quasars = objects[dist<2.0*u.arcsec ]
         clean_objects = matched_quasars[(matched_quasars["flux"]>0) &\
                                    (matched_quasars["flux"]<10**10) &\
                                    (matched_quasars["mjd_obs"]>20000)&\
