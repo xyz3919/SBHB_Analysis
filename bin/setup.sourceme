@@ -7,8 +7,9 @@ setup astropy
 setup despymisc
 setup matplotlib
 setup pandas
-setup sextractor
-setup psfex
-setup swarp
+setup requests
+#setup sextractor
+#setup psfex
+#setup swarp
 
 #PYTHONPATH=~/python/lib/python2.7/site-packages:$PYTHONPATH

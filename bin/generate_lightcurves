@@ -22,6 +22,7 @@ def main_steps(quasar):
     #  DES light curves #
     #####################
 
+    print("-- DES light curves --")
     lc.set_output_dir(lc.lc_dir+"DES/"+name)
 
     # query the data from DES database
@@ -43,6 +44,7 @@ def main_steps(quasar):
     # SDSS light curves #
     #####################
 
+    print("-- SDSS light curve --")
     lc.set_output_dir(lc.lc_dir+"SDSS/"+name)
 
     # query the data from SDSS database
@@ -67,12 +69,16 @@ def main_steps(quasar):
     # PanSTARRs DR2 #
     #################
 
+    print("-- PS light curve --")
+
     lc.set_output_dir(lc.lc_dir+"PS/"+name)
     lc.generate_and_save_PS_lightcurves(quasar)
 
     ###########
     # ZTF DR1 #
     ###########
+
+    print("-- ZTF light curve --")
 
     lc.set_output_dir(lc.lc_dir+"ZTF/"+name)
     lc.generate_and_save_ZTF_lightcurves(quasar)

@@ -1,4 +1,5 @@
 import os
+import requests
 import numpy as np
 from scipy.signal import medfilt
 from astropy.io import fits,ascii
@@ -6,6 +7,7 @@ from astropy.coordinates import SkyCoord
 from astropy import units as u
 import matplotlib
 matplotlib.use('Agg')
+import time
 import query 
 import query_PS # get PanSTARRS lightcurves
 import useful_funcs
@@ -116,8 +118,10 @@ class lc:
         # obtain the information at given position of the quasar.
 
         matched_quasars = np.array([],dtype=self.query.dtype_single)
+        print("1")
         objects = self.query.get_nearby_single_epoch_objects(\
                   quasar["ra"],quasar["dec"],10)
+        print("2")
         if objects is None: return matched_quasars
         coor_quasar = SkyCoord(ra=quasar["ra"]*u.degree,\
                                dec=quasar["dec"]*u.degree)
@@ -214,6 +218,7 @@ class lc:
 
         dcolumns = ("""objID,detectID,filterID,obsTime,ra,dec,psfFlux,psfFluxErr,psfMajorFWHM,psfMinorFWHM,psfQfPerfect,apFlux,apFluxErr,infoFlag,infoFlag2,infoFlag3""").split(',')
         attempts = 0
+        import time
         while attempts < 3:
             try:
                 dresults = query_PS.ps1cone(quasar["ra"],quasar["dec"],2./3600.,\
@@ -307,22 +312,25 @@ class lc:
 
         if mag_diff is not None: # For SDSS only
             corr_dir = self.save_dir.replace("SDSS", "SDSS_corr")
+            corr_dir = corr_dir.replace("LCO","LCO_corr")
+            corr_dir = corr_dir.replace("PS","PS_corr")
             useful_funcs.create_dir(corr_dir)
-            signal = signal+mag_diff[band]
+            signal = signal+mag_diff[band][0]
+            error = np.sqrt(error**2+mag_diff[band][1]**2)
             np.savetxt("%s/%s.csv" % (corr_dir , band),\
                        np.array([time,signal,error]).T,\
                        fmt="%f,%f,%f",comments="",\
                        header="mjd_obs,mag_psf,mag_err_psf")
 
 
-    def _get_mask_sigma_clip_moving_avg(self,signal,sigma_level=3):
+    def _get_mask_sigma_clip_moving_avg(self,signal,sigma_level=3,kernel_size=5):
 
         # return mask for sigma clip using moving median
         mask = np.ones( len(signal) , dtype=bool)
         outliers = True
         while outliers:
             sigma = np.std(signal[mask])
-            signal_smooth = medfilt(signal[mask],kernel_size=5)
+            signal_smooth = medfilt(signal[mask],kernel_size=kernel_size)
             mask_thistime = (abs(signal[mask] - signal_smooth) < \
                              sigma*sigma_level)
             if np.sum(~mask_thistime) == 0: outliers = False
@@ -509,9 +517,10 @@ class spectra:
         self.dir_spec = "spectra/" # create dir for spectra
         useful_funcs.create_dir(self.dir_spec)
         self.band_list = ["g","r","i","z"]
-        self.filter_info = {"SDSS":{},"DES":{},"LCO":{}}
+        self.filter_info = {"SDSS":{},"DES":{},"LCO":{},"CRTS":{}}
         self.get_DES_SDSS_bandpass()
         self.get_LCO_bandpass()
+        self.get_CRTS_bandpass()
 
 
     def get_SDSS_spectrum(self,ra,dec,dist=4):
@@ -578,21 +587,35 @@ class spectra:
             data_LCO[:,0] = data_LCO[:,0]*10
             self.filter_info["LCO"].update({band:data_LCO})
 
-    def spectrum_to_mag(self,lamb_spec,flux_spec,ivar_spec,lamb_trans,ratio_trans):
+    def get_CRTS_bandpass(self):
+
+        # download CRTS bandpass
+        url_filter_CRTS = "http://svo2.cab.inta-csic.es/svo/theory//fps3/getdata.php?format=ascii&id=Misc/CRTS.C"
+        if os.path.isfile(self.dir_filter+"CRTS.dat"):
+            os.system('curl "'+url_filter_CRTS+'" --output '+self.dir_filter+"CRTS.dat")
+        data_CRTS = np.genfromtxt(self.dir_filter+"CRTS.dat")
+        self.filter_info["CRTS"].update({"V":data_CRTS})
+
+    def spectrum_to_mag(self,lamb_spec,flux_spec,ivar_spec,lamb_trans,ratio_trans,system="AB",band="r"):
 
         c = 3*10**10*10**8 # A/s
         ratio_spec = np.interp(lamb_spec,lamb_trans,ratio_trans)
         STL = flux_spec*lamb_spec*ratio_spec#*ivar_spec
         T_L = ratio_spec/lamb_spec#*ivar_spec
         f_nu = 1./c*np.trapz(STL,x=lamb_spec)/np.trapz(T_L,x=lamb_spec)
-        m_AB = -2.5*np.log10(f_nu)-48.6
+        if system == "VEGA":
+            if band == "V":
+                m_AB = -2.5*np.log10(f_nu/(2690.09*10**(-23)))
+        else:
+            m_AB = -2.5*np.log10(f_nu)-48.6
 
         return m_AB
 
     def calculate_diff_err(self,lamb_spec,flux_spec,ivar_spec,trans):
 
-        n = 100
-        sample_flux_spec = np.random.normal(loc=flux_spec,scale=np.sqrt(1/ivar_spec),\
+        n = 5000
+        seed = np.random.RandomState(0)
+        sample_flux_spec = seed.normal(loc=flux_spec,scale=np.sqrt(1/ivar_spec),\
                                            size=[n,len(flux_spec)])
         mag_all = []
         for i in range(n):
@@ -604,22 +627,52 @@ class spectra:
 
         return np.std(mag_all)
 
+    def load_spectrum(self,name):
+
+        hdul = fits.open(self.dir_spec+name+".fits")
+        data =  hdul[1].data
+        data_clean = data[ ( data["and_mask"] == 0 ) & (data["ivar"] > 0 )]
+        if len(data_clean)== 0: return data_clean
+        mask = get_mask_sigma_clip_moving_avg(data_clean["flux"],sigma_level=3,\
+                                              kernel_size=11)
+        data_clean = data_clean[mask]
+        data_clean["flux"] = smooth(data_clean["flux"],10)
+        data_clean["ivar"] = 1./smooth(1./data_clean["ivar"],10)
+
+        return data_clean
+
+
     def mag_SDSS_to_DES(self,name):
 
         mag_diff = {}
         if not os.path.isfile(self.dir_spec+name+".fits"):
-            for band in self.band_list : mag_diff.update({band:0.0})
+            for band in self.band_list : mag_diff.update({band:(0.0,0.0)})
             return mag_diff
 
-        hdul = fits.open(self.dir_spec+name+".fits")
-        data =  hdul[1].data
-        data_clean = data[(data["ivar"]>0) & (data["and_mask"] == 0)]
+
+        data_clean = self.load_spectrum(name)
+        if len(data_clean) == 0 :
+            for band in self.band_list : mag_diff.update({band:(0.0,0.0)})
+            return mag_diff
+        """
+        from matplotlib import pyplot as plt
+        plt.plot(np.exp(data_clean["loglam"]),data_clean["flux"])
+        plt.savefig("test.png")
+        if np.median(data["flux"]) < 3: 
+            data_clean = data[(data["and_mask"] == 0 ) & (data["ivar"] > 1)]
+            data_clean["flux"] = smooth(data_clean["flux"],20)
+        else:
+            data_clean = data[(data["ivar"]>0) & (data["and_mask"] == 0) ]
+            data_clean["flux"] = smooth(data_clean["flux"],3)
+        """
+        #data_clean = data[(data["ivar"]>0) & (data["or_mask"] == 0)]
+
         #data_clean = data_clean[np.abs(data_clean["flux"]*np.sqrt(data_clean["ivar"])) > 3]
         #data_clean = data_clean[np.sqrt(data_clean["ivar"]).]
 
         lambda_q = 10**data_clean["loglam"]
-        #flux_q =  10**(-17)*data_clean["flux"]
-        flux_q   = 10**(-17)*data_clean["model"] 
+        flux_q =  10**(-17)*data_clean["flux"]
+        #flux_q   = 10**(-17)*data_clean["model"] 
         ivar_q = data_clean["ivar"]/10**(-34)
         for band in self.band_list :
             trans_SDSS,trans_DES = self.filter_info["SDSS"][band],\
@@ -636,8 +689,8 @@ class spectra:
             diff = mag_DES-mag_SDSS
             err_diff = np.sqrt(err_SDSS**2+err_DES**2)
             print ("%s: m_DES - m_SDSS = %.3f +- %.3f" % (band,diff,err_diff ))
-            if math.isnan(diff): mag_diff.update({band:0.0})
-            else: mag_diff.update({band:diff})
+            if math.isnan(diff): mag_diff.update({band:(0.0,0.0)})
+            else: mag_diff.update({band:(diff,err_diff)})
 
         return mag_diff
 
@@ -648,24 +701,58 @@ class spectra:
             for band in self.band_list[0:3] : mag_diff.update({band:0.0})
             return mag_diff
 
-        hdul = fits.open(self.dir_spec+name+".fits")
-        data =  hdul[1].data
-        data_clean = data[(data["ivar"]>0) & (data["and_mask"] == 0)]
+        data_clean = self.load_spectrum(name)
+
 
         lambda_q = 10**data_clean["loglam"]
-        flux_q =  10**(-17)*data_clean["flux"]
+        #flux_q =  10**(-17)*data_clean["model"]
+        flux_q = 10**(-17)*data_clean["flux"]
+        ivar_q = data_clean["ivar"]/10**(-34)
         for band in self.band_list[0:3] :
             trans_LCO,trans_DES = self.filter_info["LCO"][band],\
                                    self.filter_info["DES"][band]
-            mag_LCO =  self.spectrum_to_mag(lambda_q,flux_q,trans_LCO[:,0],\
+            mag_LCO =  self.spectrum_to_mag(lambda_q,flux_q,ivar_q,trans_LCO[:,0],\
                                              trans_LCO[:,1])
-            mag_DES =  self.spectrum_to_mag(lambda_q,flux_q,trans_DES[:,0],\
+            mag_DES =  self.spectrum_to_mag(lambda_q,flux_q,ivar_q,trans_DES[:,0],\
                                             trans_DES[:,1])
+            err_LCO = self.calculate_diff_err(lambda_q,flux_q,ivar_q,\
+                                               trans_LCO)
+            err_DES = self.calculate_diff_err(lambda_q,flux_q,ivar_q,\
+                                              trans_DES)
             #print ("mag_SDSS: "+str(mag_SDSS)+" ; mag_DES: "+str(mag_DES))
             diff = mag_DES-mag_LCO
-            print (band+": m_DES - m_LCO =" + str(diff))
-            if math.isnan(diff): mag_diff.update({band:0.0})
-            else: mag_diff.update({band:diff})
+            err_diff = np.sqrt(err_DES**2+err_LCO**2)
+            print ("%s: m_DES - m_LCO = %.3f +- %.3f" % (band,diff,err_diff))
+            if math.isnan(diff): mag_diff.update({band:(0.0,0.0)})
+            else: mag_diff.update({band:(diff,err_diff)})
+
+        return mag_diff
+
+    def mag_CRTS_to_DES(self,name):
+
+        mag_diff = {}
+
+        if not os.path.isfile(self.dir_spec+name+".fits"):
+            mag_diff.update({"r":0.0})
+            return mag_diff
+
+
+        data_clean = self.load_spectrum(name)
+
+        lambda_q = 10**data_clean["loglam"]
+        flux_q =  10**(-17)*data_clean["flux"]
+        ivar_q = data_clean["ivar"]/10**(-34)
+        trans_CRTS,trans_DES = self.filter_info["CRTS"]["V"],\
+                              self.filter_info["DES"]["r"]
+        mag_CRTS =  self.spectrum_to_mag(lambda_q,flux_q,ivar_q,trans_CRTS[:,0],\
+                                         trans_CRTS[:,1],system="VEGA",band="V")
+        mag_DES =  self.spectrum_to_mag(lambda_q,flux_q,ivar_q,trans_DES[:,0],\
+                                        trans_DES[:,1])
+        #print ("mag_SDSS: "+str(mag_SDSS)+" ; mag_DES: "+str(mag_DES))
+        diff = mag_DES-mag_CRTS
+        print ("r-V: m_DES - m_CRTS =" + str(diff))
+        if math.isnan(diff): mag_diff.update({"r":0.0})
+        else: mag_diff.update({"r":diff})
 
         return mag_diff
 
@@ -705,6 +792,26 @@ class lc_single:
         quasars.dtype.names = tuple([w.replace("flux","mag") for w \
                                      in quasars.dtype.names])
         return quasars
+
+def smooth(y, box_pts):
+    "Smooth the flux with n pixels"
+    box = np.ones(box_pts)/box_pts
+    y_smooth = np.convolve(y, box, mode = 'same')
+    return y_smooth
+
+def get_mask_sigma_clip_moving_avg(signal,sigma_level=3,kernel_size=5):
+
+    # return mask for sigma clip using moving median
+    mask = np.ones( len(signal) , dtype=bool)
+    outliers = True
+    while outliers:
+        sigma = np.std(signal[mask])
+        signal_smooth = medfilt(signal[mask],kernel_size=kernel_size)
+        mask_thistime = (abs(signal[mask] - signal_smooth) < \
+                         sigma*sigma_level)
+        if np.sum(~mask_thistime) == 0: outliers = False
+        else: mask[mask] = mask_thistime
+    return mask
 
 
 

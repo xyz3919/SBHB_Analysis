@@ -5,10 +5,10 @@ from scipy import stats
 from scipy.optimize import curve_fit
 import matplotlib
 matplotlib.use('agg')
-from javelin.zylc import get_data
-from javelin.lcmodel import Cont_Model
+#from javelin.zylc import get_data
+#from javelin.lcmodel import Cont_Model
 from gatspy import datasets, periodic
-import carmcmc as cm
+#import carmcmc as cm
 from quasar_drw import quasar_drw as qso_drw
 from quasar_drw import lnlike,lnlike_drw,lnlike_periodic
 from plot import plot
@@ -175,8 +175,8 @@ class analysis:
         excluded = np.zeros(len(parameters_list[:,0]), dtype=bool)
         for i in range(0, num_parameters-1):
             array = parameters_list[:, i]
-            upper = np.percentile(array, 95)
-            lower = np.percentile(array, 5)
+            upper = np.percentile(array, 100.-2.5)
+            lower = np.percentile(array, 2.5)
             excluded = (excluded) | ( ~((array<upper) & (array>lower) ) ) 
         parameters_list = parameters_list[~excluded]
         return parameters_list
@@ -238,7 +238,7 @@ class analysis:
         if self.test : 
             nwalkers,burnin,Nsteps,draw_times = 100,5,100,50
         elif self.large_mock :
-            nwalkers,burnin,Nsteps,draw_times = 500,150,1000,50000
+            nwalkers,burnin,Nsteps,draw_times = 500,200,1000,50000
         else:
             nwalkers = 500
             burnin = 150
@@ -256,7 +256,7 @@ class analysis:
 
         parameters_list = samples[:, burnin:, :].reshape((-1, 3))
 
-        # remove top 5% and bottome 5%
+        # remove top 2.5% and bottome 2.5%
         parameters_list_good = self.clean_parameters_list(parameters_list)
 
         # plot posterior
@@ -831,6 +831,7 @@ class analysis:
             yes = 0
             for band in self.band_list:
                 if row["peak_"+band]<0.26:
+                #if row["peak_"+band]<1:
                     yes= yes+1
             cand.at[index,"yes"] = yes
         strong_cand = cand[cand["yes"]>1]

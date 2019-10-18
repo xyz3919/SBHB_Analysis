@@ -33,15 +33,17 @@ eups distrib install astropy 1.1.2+6
 #eups distrib install astropy 2.0.8+0
 eups distrib install matplotlib 1.5.3+2
 eups distrib install pandas  0.15.2+5
-eups distrib install sextractor 2.24.4+1
-eups distrib install psfex 3.21.0+5
-eups distrib install swarp 2.40.1+0
+eups distrib install requests 2.10.0+4
+#eups distrib install sextractor 2.24.4+1
+#eups distrib install psfex 3.21.0+5
+#eups distrib install swarp 2.40.1+0
 
 cd ..
 
 echo $'setup setuptools\nsetup numpy\nsetup scipy\nsetup despydb'>>setup.sourceme
 echo $'setup astropy\nsetup despymisc\nsetup matplotlib'>>setup.sourceme
-echo $'setup pandas\nsetup sextractor\nsetup psfex\nsetup swarp\n'>>setup.sourceme
+echo $'setup pandas\n' >> setup.sourceme
+#echo $'setup sextractor\nsetup psfex\nsetup swarp\n'>>setup.sourceme
 
 source setup.sourceme
 

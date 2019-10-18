@@ -33,11 +33,11 @@ if __name__ == '__main__':
     analysis = main.analysis()
     quasar_catalog = analysis.read_quasar_catalog()
 
-    '''
-    pool = mp.Pool(mp.cpu_count()*5/8)
+    """
+    pool = mp.Pool(mp.cpu_count()*6/8)
     pool.map(task,quasar_catalog)
-    '''
-    '''
+    """
+
     # run more mock light curves
     name_list = quasar_catalog["name"].tolist()
     strong_cands = np.genfromtxt("statistics/strong_candidates.csv",names=True,delimiter=",",dtype=None)
@@ -45,9 +45,8 @@ if __name__ == '__main__':
     for strong_cand in strong_cands:
         indice = name_list.index(strong_cand["name"])
         index.append(indice)
-    pool = mp.Pool(mp.cpu_count()/6)
+    pool = mp.Pool(mp.cpu_count()/3)
     pool.map(task,quasar_catalog[index])
-    '''
 
 
     #analysis.analyze_lightcurve(quasar_catalog)
@@ -58,13 +57,13 @@ if __name__ == '__main__':
     # 18,86,153,211,322,356,393,414,451,473,478,483,505,594
     # 18,86,155,214,325,359,396,417,454,476,481,486,508,597
 
-    for i in [396]:
+    #for i in [396]:
     #for i in [396,226,259]:
-        analysis = main.analysis()
+        #analysis = main.analysis()
         #analysis.large_mock = True
         #analysis.test = True
         #analysis.analyze_lightcurve(quasar_catalog[i])
-        analysis.plot_periodogram_and_lightcurve(quasar_catalog[i])
+        #analysis.plot_periodogram_and_lightcurve(quasar_catalog[i])
         #analysis.generate_ACF_results(quasar_catalog[i])
     '''
     #for i in 18,86,155,214,325,359,396,417,454,476,481,486,508,597:

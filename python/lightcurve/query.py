@@ -207,7 +207,7 @@ class Stripe82:
                 return objects
 
         def q_orig(self,ra,dec,dist=5.0,clobber=False,idn=0):
-                outname = self.outdir + "sdss_%i_%f%s%f.phot" % (idn,ra,"-" if dec < 0 else "+",abs(dec))
+                outname = "sdss_%i_%f%s%f.phot" % (idn,ra,"-" if dec < 0 else "+",abs(dec))
                 if not clobber and os.path.exists(outname):
                         print "file %s already exists" % outname
                         return
