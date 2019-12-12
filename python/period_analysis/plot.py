@@ -237,9 +237,11 @@ class plot:
         plt.close(self.f)
 
 
-def plot_posterior(samples,likelihood,band,save_path,combine=True):
+def plot_posterior(samples,likelihood,band,save_path,combine=True,model_comp=False):
 
-    if combine:
+    if model_comp:
+        samples[:,0:2] = np.log10(samples[:,0:2])
+    elif combine:
         samples[:,1] = samples[:,1]*samples[:,0]/2
         samples[:,2] = samples[:,2]*samples[:,0]
     else:

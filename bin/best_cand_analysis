@@ -13,10 +13,10 @@ if __name__ == '__main__':
 
     analysis = main.analysis()
 
-    analysis.show_best_candidate("J024613.89-004028.2")
-    analysis.show_best_candidate("J024703.24-010032.0")
+    #analysis.show_best_candidate("J024613.89-004028.2")
+    #analysis.show_best_candidate("J024703.24-010032.0")
     analysis.show_best_candidate("J024944.66-000036.8")
-    analysis.show_best_candidate("J025214.67-002813.7")
+    #analysis.show_best_candidate("J025406.26+002753.7")
 
     stop = timeit.default_timer()
     print("Execution Time:"+str((stop-start)/60.)+" mins")

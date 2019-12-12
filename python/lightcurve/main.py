@@ -45,14 +45,14 @@ class lc:
         self.save_dir = output_dir
         useful_funcs.create_dir(self.save_dir)
 
-    def load_quasar_catalog(self):
+    def load_quasar_catalog(self,quasar_catalog="Dr14+DR7+OzDES+Milliq_S1S2.txt"):
 
         # loading the quasar catalog
         # columns=[ra,dec,z,flag1,flag2,flag3,flag4,mag_psf_i,spread_model_i,
         #           spread_model_err_i]
         print("loading quasar catalog: "+self.quasar_catalog_dir+\
-              self.quasar_catalog)
-        with open(self.quasar_catalog_dir+self.quasar_catalog) as f:
+              quasar_catalog)
+        with open(self.quasar_catalog_dir+quasar_catalog) as f:
             first_line = f.readline()
         num_columns = len(first_line.split(","))
         flag_number = num_columns-6

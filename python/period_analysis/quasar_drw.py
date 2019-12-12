@@ -12,6 +12,8 @@ from scipy.signal import medfilt
 from astroML.time_series import generate_damped_RW
 from scipy.optimize import minimize, rosen, rosen_der
 from plot import plot
+#import multiprocessing as mp
+
 
 class quasar_drw:
 
@@ -206,7 +208,7 @@ class quasar_drw:
 
         # use most likely val as a initial guess
         nll = lambda *args: -lnlike_drw(*args)
-        result = op.minimize(nll, [np.log(300.), np.log(1), np.log(np.mean(signal))], args=(self.time, self.signal, self.error, self.redshift),method="Nelder-Mead")
+        result = op.minimize(nll, [np.log(300.), np.log(0.1), np.log(np.mean(signal))], args=(self.time, self.signal, self.error, self.redshift),method="Nelder-Mead")
         tau_center = np.exp(result["x"][0])
         sigma_center   = np.exp(result["x"][1])
         mean_center   = np.exp(result["x"][2])
@@ -217,7 +219,7 @@ class quasar_drw:
 
        ## initiate a gaussian distribution aroun dthe mean value
         ## modify this part if needed
-        pos = random_state.normal(loc=result["x"], scale=[1,1,0.01],\
+        pos = random_state.normal(loc=result["x"], scale=[0.1,0.1,0.01],\
                                   size=[nwalkers,len(result["x"])])
         #tau_sample = random_state.normal(loc=result["x"][0], scale=1, size=nwalkers)
         #sigma_sample   = random_state.normal(loc=result["x"][1],   scale=1, size=nwalkers)
@@ -226,7 +228,8 @@ class quasar_drw:
         #for i in range(nwalkers):
         #    parameter = np.array([tau_sample[i], sigma_sample[i], mean_sample[i]])
         #    pos.append(parameter)
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob_drw, args=(time, signal, error, z), a=2.0)
+        #pool = mp.Pool(mp.cpu_count()/6)
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob_drw, args=(time, signal, error, z), a=2.0)#,pool=pool)
 
         # import random state 
         sampler.random_state = random_state.get_state()
@@ -236,10 +239,13 @@ class quasar_drw:
         # remove burn-in
         burnin = burnin
 
-        ## depending on the preference, return whatever you prefer
-        return sampler.chain
+        #pool.close()
+        #pool.join()
 
-    def fit_periodic_model_mcmc(self, nwalkers=500, burnin=150, Nstep=500,random_state=np.random.RandomState(0),model="sin"):
+        ## depending on the preference, return whatever you prefer
+        return sampler.get_chain(discard=burnin),sampler.get_log_prob(discard=burnin)
+
+    def fit_periodic_model_mcmc(self, nwalkers=500, burnin=150, Nstep=500,random_state=np.random.RandomState(0),model="sin",name=None):
 
         ndim    = 6
         pos     = []
@@ -259,6 +265,8 @@ class quasar_drw:
             data1 = np.genfromtxt("%s/%s_primary.csv" % (q_data_path,model),dtype=float,delimiter=",")
             data2 = np.genfromtxt("%s/%s_secondary.csv" % (q_data_path,model),dtype=float,delimiter=",")
             self.sim_time = data1[:,0]
+            if model == "q043": self.sim_time = self.sim_time/5.
+
             self.sim_time = self.sim_time-np.min(self.sim_time)
             self.sim_signal = data1[:,1]+data2[:,1]
             self.sim_signal = self.sim_signal - np.mean(self.sim_signal)
@@ -268,19 +276,27 @@ class quasar_drw:
 
         # use most likely val as a initial guess
         nll = lambda *args: -lnprob_periodic(*args)
-        result = op.minimize(nll, [np.log(1000),np.log(50000),np.log(0.3),np.log(np.mean(signal)), np.log(0.01), np.log(300)], args=(self.time, self.signal, self.error, self.sim_time, self.sim_signal, self.redshift),method="Nelder-Mead")
+        result = op.minimize(nll, [np.log(1000),np.log(50000),np.log(0.3),np.log(np.mean(signal)), np.log(300), np.log(0.3)], args=(self.time, self.signal, self.error, self.sim_time, self.sim_signal, self.redshift),method="Nelder-Mead")
         #tau_center = np.exp(result["x"][0])
         #sigma_center   = np.exp(result["x"][1])
         #mean_center   = np.exp(result["x"][2])
+        if result["x"][4] >  np.log(2000): result["x"][4] = np.log(300)
+        if result["x"][5] < np.log(0.1): result["x"][5] = np.log(0.3)
+
+        if name == "J024613.89-004028.2": result["x"] = np.log(np.array([1170,52040,0.31,np.mean(signal),np.exp(2.55),np.exp(-1.7)]))
+        if name == "J024703.24-010032.0": result["x"] = np.log(np.array([1620,54540,0.85,np.mean(signal),np.exp(2.85),np.exp(-0.4)]))
+        if name == "J024944.66-000036.8": result["x"] = np.log(np.array([1100,54230,0.6,np.mean(signal),np.exp(2.58),np.exp(-0.9)]))
+        if name == "J025406.26+002753.7": result["x"] = np.log(np.array([1490,53130,0.65,np.mean(signal),np.exp(2.9),np.exp(-0.5)]))
+
 
         print("Initial guess of (t_ratio, t_shift, s_ratio, s_shift, "+\
-              "sigma, tau) = ( %.2f, %.2e, %.2f, %.2f, %.2f, %.2f )" % \
+              "tau, sigma) = ( %.2f, %.2e, %.2f, %.2f, %.2f, %.2f )" % \
               tuple(np.exp(result["x"]))
               )
 
        ## initiate a gaussian distribution aroun dthe mean value
         ## modify this part if needed
-        pos = random_state.normal(loc=result["x"], scale=[0.1,0.01,0.5,0.01,1,1],\
+        pos = random_state.normal(loc=result["x"], scale=[0.01,0.001,0.01,0.001,0.1,0.01],\
                                   size=[nwalkers,len(result["x"])]) 
 
         #tau_sample = random_state.normal(loc=result["x"][0], scale=1, size=nwalkers)
@@ -290,7 +306,8 @@ class quasar_drw:
         #for i in range(nwalkers):
         #    parameter = np.array([tau_sample[i], sigma_sample[i], mean_sample[i]])
         #    pos.append(parameter)
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob_periodic, args=(time, signal, error, self.sim_time, self.sim_signal, z), a=2.0)
+        #pool = mp.Pool(mp.cpu_count()/6)
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob_periodic, args=(time, signal, error, self.sim_time, self.sim_signal, z), a=2.0)#, pool=pool)
 
         # import random state 
         sampler.random_state = random_state.get_state()
@@ -300,8 +317,11 @@ class quasar_drw:
         # remove burn-in
         burnin = burnin
 
+        #pool.close()
+        #pool.join()
+
         ## depending on the preference, return whatever you prefer
-        return sampler.chain
+        return sampler.get_chain(discard=burnin),sampler.get_log_prob(discard=burnin)
 
 
 
@@ -578,7 +598,7 @@ def lnprior_drw(theta, z, time):
     # prior is determined in the rest frame, no need to multiply (1+z)
     lntau, lnsigma, lnmean = theta
     tau_fit, sigma_fit, mean_fit = np.exp(lntau), np.exp(lnsigma), np.exp(lnmean)
-    if tau_fit > 0.0 and 10 < mean_fit < 30 and 1.0 < tau_fit < (np.max(time)-np.min(time)): # mag
+    if tau_fit > 0.0 and 0 < mean_fit < 10**3 and 1.0 < tau_fit < (np.max(time)-np.min(time))/3.: # mag
         return 0.0
     else:
         return -np.inf
@@ -595,13 +615,13 @@ def lnprob_periodic (theta, time, signal, error, sim_time, sim_signal, z):
 
 def lnprior_periodic(theta, z, time):
     # prior is determined in the rest frame, no need to multiply (1+z)
-    lnt_ratio, lnt_shift, lns_ratio, lns_shift, lndrw_sigma, lndrw_tau = theta
+    lnt_ratio, lnt_shift, lns_ratio, lns_shift, lndrw_tau, lndrw_sigma = theta
     t_ratio, t_shift, s_ratio, s_shift, drw_sigma, drw_tau = np.exp(lnt_ratio),\
         np.exp(lnt_shift), np.exp(lns_ratio), \
         np.exp(lns_shift), np.exp(lndrw_sigma), np.exp(lndrw_tau)
 
-    if drw_tau > 0.0  and 1.0 < drw_tau < (np.max(time)-np.min(time)) and \
-       10 < s_shift < 30 and 0.01 < s_ratio < 5 and 50000 < t_shift < 50000+t_ratio and\
+    if drw_tau > 0.0  and 1.0 < drw_tau < (np.max(time)-np.min(time))/3. and \
+       0 < s_shift < 10**3 and 0.01 < s_ratio < 10**4 and 50000 < t_shift < 50000+5*t_ratio and\
        500. < t_ratio < (np.max(time)-np.min(time))/3. : # mag
         return 0.0
     else:
@@ -611,7 +631,7 @@ def lnprior_periodic(theta, z, time):
 
 def lnlike_periodic(theta, fit_time, fit_signal, fit_error, sim_time, sim_signal, z):
 
-    t_ratio, t_shift, s_ratio, s_shift, drw_sigma, drw_tau = np.exp(theta)
+    t_ratio, t_shift, s_ratio, s_shift, drw_tau, drw_sigma  = np.exp(theta)
 
     fit = np.interp( fit_time, (sim_time*t_ratio)+t_shift, (sim_signal*s_ratio)+s_shift )
     model = fit_signal - fit

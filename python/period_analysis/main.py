@@ -103,11 +103,14 @@ class analysis:
         
         return error_list
 
-    def _check_period_max_amp(self, period, psd):
+    def _check_period_max_amp(self, period, confidence, psd):
         # only search for peak amp between 500 days and 3 cycles.
-        interval = (period<max(period)/3.) & (period>self.period_lowerlim)
-        period_within = period[interval]
-        amp_within = psd[interval]
+        interval1 = (period<max(period)/3.) & (period>self.period_lowerlim)
+        #interval2 = confidence > 99.74
+        #period_within = period[interval1 & interval2]
+        #amp_within = psd[interval1 & interval2]
+        period_within = period[interval1]
+        amp_within = psd[interval1]
         amp_max = np.max(amp_within)
         period_max = period_within[np.where(amp_within==amp_max)]
         return period_max,amp_max
@@ -179,7 +182,7 @@ class analysis:
             lower = np.percentile(array, 2.5)
             excluded = (excluded) | ( ~((array<upper) & (array>lower) ) ) 
         parameters_list = parameters_list[~excluded]
-        return parameters_list
+        return parameters_list,~excluded
 
     def save_lightcurve(self,time,signal,error,filename):
 
@@ -218,13 +221,32 @@ class analysis:
 
         return data
 
-    def save_period_confidence_level(self, _freq, boundary_all, filename):
+    def mag_to_flux(self,mag,error_mag):
+
+        """ convert magnitude to flux """
+
+        flux = 10**((22.5-mag)/2.5)
+        error_flux = error_mag*flux/1.09
+
+        return flux,error_flux
+
+    def flux_to_mag(self,flux,error_flux):
+
+        """ convert flux to magnitude"""
+
+        mag = 22.5 - np.log10(flux)*2.5
+        error_mag = error_flux/flux*1.09
+
+        return flux,error_mag
+
+    def save_period_confidence_level(self, _freq, psd, boundary_all, filename):
 
         period = np.array([_freq]).T
+        psd_real = np.array([psd]).T
         psd_array = np.array([boundary_all]).T
-        save_data = np.concatenate((period, psd_array), axis=1)
+        save_data = np.concatenate((period, psd_real, psd_array), axis=1)
         np.savetxt(filename, save_data, delimiter=",", comments="",\
-                   header="period,confidence_level")
+                   header="period,power,confidence_level")
 
     def tailored_simulation(self,lc,band,z,name):#,periodogram,lightcurve):
 
@@ -257,7 +279,7 @@ class analysis:
         parameters_list = samples[:, burnin:, :].reshape((-1, 3))
 
         # remove top 2.5% and bottome 2.5%
-        parameters_list_good = self.clean_parameters_list(parameters_list)
+        parameters_list_good,good_index = self.clean_parameters_list(parameters_list)
 
         # plot posterior
         theta = [parameters_list_good[:,0],parameters_list_good[:,1],\
@@ -390,7 +412,7 @@ class analysis:
             confidence_levels.append(100.-confidence_level)
         if ACF: append = "ACF_" 
         else: append = ""
-        self.save_period_confidence_level(period,confidence_levels,\
+        self.save_period_confidence_level(period,psd,confidence_levels,\
                                    self.output_dir+self.name+"/confidence_"+band+".csv")
         return confidence_levels
 
@@ -404,9 +426,10 @@ class analysis:
 
         """ make fitted sin curve  """
         confidence_level = self._load_confidence_level(name,band)
+        power = np.load(self.output_dir+name+"/real/psd_"+band+".npy")[1]
         period_max,amp_max = self._check_period_max_amp(\
                              confidence_level["period"],\
-                             100-confidence_level["confidence_level"])
+                             100-confidence_level["confidence_level"],power)
         if len(period_max) > 1 : period_max = np.mean(period_max)
         amp, amp_err, xn, yn = self._fitting(time, signal, period_max)
 
@@ -493,7 +516,7 @@ class analysis:
     def show_best_candidate(self,name):
 
         """  Showing the properties of the best candidates """
-        print ("-- %s --" % name)
+        useful_funcs.print_and_write("log_%s" % name,"-- %s --" % name)
         self.name = name
 
         catalog = self.read_quasar_catalog()
@@ -513,65 +536,111 @@ class analysis:
 
     def model_comparison(self,time,signal,error,band,z):
         
+        # convert to flux domain
+        signal,error = self.mag_to_flux(signal,error)
+
         # model comparison
         lc = qso_drw(time,signal,error,z,preprocess=False)
-        #nwalkers,burnin,Nsteps,draw_times = 500,100,500,500
-        nwalkers, burnin, Nsteps, draw_times = 1000,200,1000,100
+        #nwalkers,burnin,Nsteps,draw_times = 20,5,20,100
+        #nwalkers, burnin, Nsteps, draw_times = 1000,200,1000,100
+        nwalkers, burnin, Nsteps, draw_times = 250,250,500,100
+
+        models = ["drw","sin","q011","q043"]
+        #models = ["q011","q043"]
+
+        for model in models:
+
+            useful_funcs.print_and_write("log_%s" % self.name,"Running %s model" % model)
+            if model == "drw":
+                samples,lnprob =  lc.fit_drw_model_mcmc(nwalkers=nwalkers, burnin=burnin,Nstep=Nsteps)
+                N_par = 3
+            else:
+                samples,lnprob =  lc.fit_periodic_model_mcmc(nwalkers=nwalkers, burnin=burnin,Nstep=Nsteps,model=model,name=self.name)
+                N_par = 6
+
+            np.savez("cands/%s/%s_%s.npz" % (self.name,model, band), samples,lnprob )
+            parameters_list = samples.reshape((-1, N_par))
+            lnprob = lnprob.reshape(-1)
+
+            # remove top 5% and bottome 5%
+            parameters_list_good,good_index = self.clean_parameters_list(parameters_list)
+            lnprob_good = lnprob[good_index]
+
+            # plot posterior
+            from plot import plot_posterior, plot_posterior_drw_periodic
+            if model == "drw":
+                plot_posterior(np.exp(parameters_list_good),np.exp(lnprob_good), band,"cands/%s/post_%s_%s.png" % (self.name, model,band),model_comp=True)
+            else:
+                plot_posterior_drw_periodic(np.exp(parameters_list_good),np.exp(lnprob_good), band,"cands/%s/post_%s_%s.png" % (self.name, model,band))
+            useful_funcs.print_and_write("log_%s" % self.name, "best-fit parameters: %s" % str(tuple(parameters_list_good[np.argmax(lnprob_good)])))
+            useful_funcs.print_and_write("log_%s" % self.name,"BIC(%s) : %s" % (model,self.calculate_BIC(np.max(np.exp(lnprob_good)),N_par,len(lc.time))))
+
+        """
 
         # DRW only model
 
-        samples =  lc.fit_drw_model_mcmc(nwalkers=nwalkers, burnin=burnin,\
+        useful_funcs.print_and_write("log_%s" % self.name,"Running DRW model")
+        samples,lnprob =  lc.fit_drw_model_mcmc(nwalkers=nwalkers, burnin=burnin,\
                            Nstep=Nsteps)
-        parameters_list = samples[:, burnin:, :].reshape((-1, 3))
+        np.save("cands/%s/drw_%s.npy" % (self.name, band), (samples,lnprob) )
+
+        parameters_list = samples.reshape((-1, 3))
+        lnprob = lnprob.reshape((1,-1))
 
         # remove top 5% and bottome 5%
-        parameters_list_good = self.clean_parameters_list(parameters_list)
+        parameters_list_good,good_index = self.clean_parameters_list(parameters_list)
+        lnprob_good = lnprob[good_index]
 
         # plot posterior
         theta = parameters_list_good.T
+
         #theta = [parameters_list_good[:,0],parameters_list_good[:,1],\
         #         parameters_list_good[:,2]]
-        likelihood = []
-        for theta_i in parameters_list_good:
-            likelihood.append(lnlike_drw(theta_i,lc.time,lc.signal,lc.error,z))
         from plot import plot_posterior
-        plot_posterior(np.exp(parameters_list_good),likelihood, band,\
-                       "cands/post_drw_%s_%s.png" % (self.name, band) ,combine=False)
-        print("BIC(drw) : %s" %self.calculate_BIC(np.max(likelihood),3,len(lc.time)))
+        plot_posterior(np.exp(parameters_list_good), np.exp(lnprob_good), band,\
+                       "cands/%s/post_drw_%s.png" % (self.name, band) ,combine=False)
+        useful_funcs.print_and_write("log_%s" % self.name,"BIC(drw) : %s" %self.calculate_BIC(np.max(np.exp(lnprob_good)),3,len(lc.time)))
 
 
         # DRW+periodic model
 
-        samples =  lc.fit_periodic_model_mcmc(nwalkers=nwalkers, burnin=burnin,\
+        useful_funcs.print_and_write("log_%s" % self.name,"Running SIN model")
+        samples,lnprob =  lc.fit_periodic_model_mcmc(nwalkers=nwalkers, burnin=burnin,\
                            Nstep=Nsteps,model="sin")
-        parameters_list = samples[:, burnin:, :].reshape((-1, 6))
+        np.save("cands/%s/sin_%s.npy" % (self.name, band), (samples,lnprob) )
+
+        parameters_list = samples.reshape((-1, 6))
+        lnprob = lnprob.reshape((1,-1))
 
         # remove top 5% and bottome 5%
-        parameters_list_good = self.clean_parameters_list(parameters_list)
+        parameters_list_good,good_index = self.clean_parameters_list(parameters_list)
+        lnprob_good = lnprob[good_index]
 
         # plot posterior
         theta = parameters_list_good.T
         #theta = [parameters_list_good[:,0],parameters_list_good[:,1],\
         #         parameters_list_good[:,2]]
-        likelihood = []
-        for theta_i in parameters_list_good:
-            likelihood.append(lnlike_periodic(theta_i,lc.time,lc.signal,lc.error,lc.sim_time,lc.sim_signal,z))
         from plot import plot_posterior_drw_periodic
-        plot_posterior_drw_periodic(np.exp(parameters_list_good),likelihood, band,\
-                       "cands/post_sin_%s_%s.png" % (self.name, band))
-        print("BIC(sin) : %s" % self.calculate_BIC(np.max(likelihood),6,len(lc.time)))
+        plot_posterior_drw_periodic(np.exp(parameters_list_good),np.exp(lnprob_good), band,\
+                       "cands/%s/post_sin_%s.png" % (self.name, band))
+        useful_funcs.print_and_write("log_%s" % self.name,"BIC(sin) : %s" % self.calculate_BIC(np.max(np.exp(lnprob_good)),6,len(lc.time)))
 
-       # q11
+        # q11
 
+        useful_funcs.print_and_write("log_%s" % self.name,"Running q11")
         samples =  lc.fit_periodic_model_mcmc(nwalkers=nwalkers, burnin=burnin,\
                            Nstep=Nsteps,model="q011")
-        parameters_list = samples[:, burnin:, :].reshape((-1, 6))
+        np.save("cands/%s/q11_%s.npy" % (self.name, band), (samples,lnprob) )
+
+        parameters_list = samples.reshape((-1, 6))
+
 
         # remove top 5% and bottome 5%
-        parameters_list_good = self.clean_parameters_list(parameters_list)
+        parameters_list_good, good_index = self.clean_parameters_list(parameters_list)
 
         # plot posterior
         theta = parameters_list_good.T
+        np.save("cands/%s/q11_%s.npy" % (self.name, band), theta)
         #theta = [parameters_list_good[:,0],parameters_list_good[:,1],\
         #         parameters_list_good[:,2]]
         likelihood = []
@@ -579,20 +648,22 @@ class analysis:
             likelihood.append(lnlike_periodic(theta_i,lc.time,lc.signal,lc.error,lc.sim_time,lc.sim_signal,z))
         from plot import plot_posterior_drw_periodic
         plot_posterior_drw_periodic(np.exp(parameters_list_good),likelihood, band,\
-                       "cands/post_q11_%s_%s.png" % (self.name, band))
-        print("BIC(q011) : %s" % self.calculate_BIC(np.max(likelihood),6,len(lc.time)))
+                       "cands/%s/post_q11_%s.png" % (self.name, band))
+        useful_funcs.print_and_write("log_%s" % self.name,"BIC(q011) : %s" % self.calculate_BIC(np.max(likelihood),6,len(lc.time)))
 
        # q34
 
+        useful_funcs.print_and_write("log_%s" % self.name,"Running q34")
         samples =  lc.fit_periodic_model_mcmc(nwalkers=nwalkers, burnin=burnin,\
                            Nstep=Nsteps,model="q043")
         parameters_list = samples[:, burnin:, :].reshape((-1, 6))
 
         # remove top 5% and bottome 5%
-        parameters_list_good = self.clean_parameters_list(parameters_list)
+        parameters_list_good, good_index = self.clean_parameters_list(parameters_list)
 
         # plot posterior
         theta = parameters_list_good.T
+        np.save("cands/%s/q34_%s.npy" % (self.name, band), theta)
         #theta = [parameters_list_good[:,0],parameters_list_good[:,1],\
         #         parameters_list_good[:,2]]
         likelihood = []
@@ -600,10 +671,10 @@ class analysis:
             likelihood.append(lnlike_periodic(theta_i,lc.time,lc.signal,lc.error,lc.sim_time,lc.sim_signal,z))
         from plot import plot_posterior_drw_periodic
         plot_posterior_drw_periodic(np.exp(parameters_list_good),likelihood, band,\
-                       "cands/post_q43_%s_%s.png" % (self.name, band))
-        print("BIC(q043) : %s" % self.calculate_BIC(np.max(likelihood),6,len(lc.time)))
+                       "cands/%s/post_q43_%s.png" % (self.name, band))
+        useful_funcs.print_and_write("log_%s" % self.name,"BIC(q043) : %s" % self.calculate_BIC(np.max(likelihood),6,len(lc.time)))
 
-
+        """
 
 
     def calculate_BIC(self,likelihood,k,N):
