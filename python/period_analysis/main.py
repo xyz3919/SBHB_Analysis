@@ -261,6 +261,7 @@ class analysis:
             nwalkers,burnin,Nsteps,draw_times = 100,5,100,50
         elif self.large_mock :
             nwalkers,burnin,Nsteps,draw_times = 500,200,1000,50000
+            #nwalkers,burnin,Nsteps,draw_times = 100,25,100,500
         else:
             nwalkers = 500
             burnin = 150
@@ -301,8 +302,9 @@ class analysis:
         #for i in range(draw_times):
         for i in index:
             tau,c,b = np.exp(parameters_list_good[i])
-            mock_time,mock_signal = lc.generate_mock_lightcurve(tau,c,lc.time,\
-                                    lc.signal,z,random_state=self.random_state)
+            #mock_time,mock_signal = lc.generate_mock_lightcurve(tau,c,lc.time,\
+            #                        lc.signal,z,random_state=self.random_state)
+            mock_time,mock_signal = lc.get_BPL_lc(tau,lc.time,lc.signal)
             mock_lcs.append(mock_signal)
             #mock_lcs.append(np.array([mock_time,mock_signal]).T)
             #self.save_lightcurve(mock_time,mock_signal,lc.error,\
@@ -524,6 +526,8 @@ class analysis:
         print ("z: %s" % info["z"])
 
         amps,errs = [],[]
+        #band = "z"
+        #if True:
         for band in self.band_list:
             time,signal,error = self.read_total_lightcurve(name,band)
             amp, amp_err, xn, yn = self._get_fit_curve(time,signal,name,band)
@@ -536,17 +540,19 @@ class analysis:
 
     def model_comparison(self,time,signal,error,band,z):
         
+        #useful_funcs.print_and_write("log_%s" % self.name, "band: %s" % band)
         # convert to flux domain
         signal,error = self.mag_to_flux(signal,error)
 
         # model comparison
         lc = qso_drw(time,signal,error,z,preprocess=False)
-        #nwalkers,burnin,Nsteps,draw_times = 20,5,20,100
+        #nwalkers,burnin,Nsteps,draw_times = 50,10,50,100
         #nwalkers, burnin, Nsteps, draw_times = 1000,200,1000,100
         nwalkers, burnin, Nsteps, draw_times = 250,250,500,100
 
-        models = ["drw","sin","q011","q043"]
-        #models = ["q011","q043"]
+        #models = ["drw","sin","q011","q043"]
+        models = ["sin","q011"]
+        combination = False
 
         for model in models:
 
@@ -555,8 +561,13 @@ class analysis:
                 samples,lnprob =  lc.fit_drw_model_mcmc(nwalkers=nwalkers, burnin=burnin,Nstep=Nsteps)
                 N_par = 3
             else:
-                samples,lnprob =  lc.fit_periodic_model_mcmc(nwalkers=nwalkers, burnin=burnin,Nstep=Nsteps,model=model,name=self.name)
-                N_par = 6
+                if combination:
+                    samples,lnprob =  lc.fit_periodic_model_mcmc(nwalkers=nwalkers, burnin=burnin,Nstep=Nsteps,model=model,name=self.name,drw_periodic=True)
+                    N_par = 6
+                else:
+                    samples,lnprob =  lc.fit_periodic_model_mcmc(nwalkers=nwalkers, burnin=burnin,Nstep=Nsteps,model=model,name=self.name,drw_periodic=False)
+                    N_par = 5
+
 
             np.savez("cands/%s/%s_%s.npz" % (self.name,model, band), samples,lnprob )
             parameters_list = samples.reshape((-1, N_par))
@@ -571,9 +582,9 @@ class analysis:
             if model == "drw":
                 plot_posterior(np.exp(parameters_list_good),np.exp(lnprob_good), band,"cands/%s/post_%s_%s.png" % (self.name, model,band),model_comp=True)
             else:
-                plot_posterior_drw_periodic(np.exp(parameters_list_good),np.exp(lnprob_good), band,"cands/%s/post_%s_%s.png" % (self.name, model,band))
-            useful_funcs.print_and_write("log_%s" % self.name, "best-fit parameters: %s" % str(tuple(parameters_list_good[np.argmax(lnprob_good)])))
-            useful_funcs.print_and_write("log_%s" % self.name,"BIC(%s) : %s" % (model,self.calculate_BIC(np.max(np.exp(lnprob_good)),N_par,len(lc.time))))
+                plot_posterior_drw_periodic(np.exp(parameters_list_good),np.exp(lnprob_good), band,"cands/%s/post_%s_%s.png" % (self.name, model,band),drw_periodic=combination)
+            useful_funcs.print_and_write("log_%s" % self.name, "best-fit parameters: %s" % str(tuple(np.exp(parameters_list_good[np.argmax(lnprob_good)]))))
+            useful_funcs.print_and_write("log_%s" % self.name,"BIC(%s,%s) : %s" % (band,model,self.calculate_BIC(np.max(np.exp(lnprob_good)),N_par,len(lc.time))))
 
         """
 
@@ -678,6 +689,7 @@ class analysis:
 
 
     def calculate_BIC(self,likelihood,k,N):
+        print(likelihood,k,N)
         return -2*np.log(likelihood)+k*np.log(N)
 
 

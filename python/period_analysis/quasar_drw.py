@@ -13,6 +13,7 @@ from astroML.time_series import generate_damped_RW
 from scipy.optimize import minimize, rosen, rosen_der
 from plot import plot
 #import multiprocessing as mp
+import pyLCSIM
 
 
 class quasar_drw:
@@ -245,13 +246,17 @@ class quasar_drw:
         ## depending on the preference, return whatever you prefer
         return sampler.get_chain(discard=burnin),sampler.get_log_prob(discard=burnin)
 
-    def fit_periodic_model_mcmc(self, nwalkers=500, burnin=150, Nstep=500,random_state=np.random.RandomState(0),model="sin",name=None):
+    def fit_periodic_model_mcmc(self, nwalkers=500, burnin=150, Nstep=500,random_state=np.random.RandomState(0),model="sin",name=None,band="g",drw_periodic=False):
 
-        ndim    = 6
+        if drw_periodic:
+            ndim    = 6
+        else:
+            ndim    = 5
+
         pos     = []
 
         z           = self.redshift
-        time        = self.time
+        time        = self.time - min(self.time)
         signal      = self.signal
         error       = self.error
 
@@ -259,7 +264,7 @@ class quasar_drw:
         q_data_path = "."
 
         if model == "sin":
-            self.sim_time = np.linspace(0,10,1000)
+            self.sim_time = np.linspace(-1,10,100000)
             self.sim_signal = np.sin(self.sim_time*2*np.pi)
         elif model == "q011" or model == "q043":
             data1 = np.genfromtxt("%s/%s_primary.csv" % (q_data_path,model),dtype=float,delimiter=",")
@@ -267,7 +272,7 @@ class quasar_drw:
             self.sim_time = data1[:,0]
             if model == "q043": self.sim_time = self.sim_time/5.
 
-            self.sim_time = self.sim_time-np.min(self.sim_time)
+            self.sim_time = self.sim_time-np.min(self.sim_time)-1
             self.sim_signal = data1[:,1]+data2[:,1]
             self.sim_signal = self.sim_signal - np.mean(self.sim_signal)
             
@@ -276,38 +281,66 @@ class quasar_drw:
 
         # use most likely val as a initial guess
         nll = lambda *args: -lnprob_periodic(*args)
-        result = op.minimize(nll, [np.log(1000),np.log(50000),np.log(0.3),np.log(np.mean(signal)), np.log(300), np.log(0.3)], args=(self.time, self.signal, self.error, self.sim_time, self.sim_signal, self.redshift),method="Nelder-Mead")
-        #tau_center = np.exp(result["x"][0])
-        #sigma_center   = np.exp(result["x"][1])
-        #mean_center   = np.exp(result["x"][2])
-        if result["x"][4] >  np.log(2000): result["x"][4] = np.log(300)
-        if result["x"][5] < np.log(0.1): result["x"][5] = np.log(0.3)
+        if drw_periodic:
+            result = op.minimize(nll, [np.log(1000),np.log(0.5),np.log(0.3),np.log(np.mean(signal)), np.log(300), np.log(0.3)], args=(time, signal, error, self.sim_time, self.sim_signal, self.redshift,drw_periodic),method="Nelder-Mead")
+            #tau_center = np.exp(result["x"][0])
+            #sigma_center   = np.exp(result["x"][1])
+            #mean_center   = np.exp(result["x"][2])
+            if result["x"][4] >  np.log(2000): result["x"][4] = np.log(300)
+            if result["x"][5] < np.log(0.1): result["x"][5] = np.log(0.3)
 
-        if name == "J024613.89-004028.2": result["x"] = np.log(np.array([1170,52040,0.31,np.mean(signal),np.exp(2.55),np.exp(-1.7)]))
-        if name == "J024703.24-010032.0": result["x"] = np.log(np.array([1620,54540,0.85,np.mean(signal),np.exp(2.85),np.exp(-0.4)]))
-        if name == "J024944.66-000036.8": result["x"] = np.log(np.array([1100,54230,0.6,np.mean(signal),np.exp(2.58),np.exp(-0.9)]))
-        if name == "J025406.26+002753.7": result["x"] = np.log(np.array([1490,53130,0.65,np.mean(signal),np.exp(2.9),np.exp(-0.5)]))
+            """
+            if name == "J024613.89-004028.2": result["x"] = np.log(np.array([1170,52040,0.31,np.mean(signal),np.exp(2.55),np.exp(-1.7)]))
+            if name == "J024703.24-010032.0": result["x"] = np.log(np.array([1620,54540,0.85,np.mean(signal),np.exp(2.85),np.exp(-0.4)]))
+            if name == "J024944.66-000036.8": result["x"] = np.log(np.array([1100,54230,0.6,np.mean(signal),np.exp(2.58),np.exp(-0.9)]))
+            if name == "J025406.26+002753.7": result["x"] = np.log(np.array([1490,53130,0.65,np.mean(signal),np.exp(2.9),np.exp(-0.5)]))
+            """
+            if name == "J024613.89-004028.2": result["x"] = np.log(np.array([1170,0.5,0.31,np.mean(signal),np.exp(2.55),np.exp(-1.7)]))
+            if name == "J024703.24-010032.0": 
+                result["x"] = np.log(np.array([1780,1.1,0.7,np.mean(signal),np.exp(2.5),np.exp(-0.7)]))
+                if band == "r": result["x"][[2,4,5]] = [np.log(0.75),2.85,-0.5]
+                elif band == "i": result["x"][[2,4,5]] = [np.log(0.6),3.1,-0.35]
+                elif band == "z": result["x"][[2,4,5]] = [np.log(0.58),3.3,-0.3]
+                if model == "q011": result["x"][[1,2]] = [np.log(1.42),np.log(0.8)]
 
-
-        print("Initial guess of (t_ratio, t_shift, s_ratio, s_shift, "+\
-              "tau, sigma) = ( %.2f, %.2e, %.2f, %.2f, %.2f, %.2f )" % \
-              tuple(np.exp(result["x"]))
-              )
+            if name == "J024944.66-000036.8": 
+                result["x"] = np.log(np.array([1150,1.25,0.6,np.mean(signal),np.exp(2.4),np.exp(-1.0)]))
+                if model == "q011": result["x"][1] = np.log(0.9)
+            if name == "J025406.26+002753.7": 
+                result["x"] = np.log(np.array([1490,0.62,0.55,np.mean(signal),np.exp(2.82),np.exp(-0.61)]))
+                if band == "r": result["x"][[2,4,5]] = [np.log(0.57),3.02,-0.45]
+                elif band == "i": result["x"][[2,4,5]] = [np.log(0.55),3.05,-0.45]
+                elif band == "z": result["x"][[2,4,5]] = [np.log(0.7),2.9,-0.65]
+    
+                if model == "q011": result["x"][1] = np.log(1.1)
+            print("Initial guess of (t_ratio, t_shift, s_ratio, s_shift, "+\
+                 "tau, sigma) = ( %.2f, %.2e, %.2f, %.2f, %.2f, %.2f )" % \
+                 tuple(np.exp(result["x"])))
 
        ## initiate a gaussian distribution aroun dthe mean value
         ## modify this part if needed
-        pos = random_state.normal(loc=result["x"], scale=[0.01,0.001,0.01,0.001,0.1,0.01],\
-                                  size=[nwalkers,len(result["x"])]) 
+            pos = random_state.normal(loc=result["x"], scale=[0.0001,0.0001,0.01,0.001,0.01,0.01],size=[nwalkers,len(result["x"])]) 
+        else:
+            result = op.minimize(nll, [np.log(1500),np.log(1.0),np.log(0.3),np.log(np.mean(signal)),np.log(0.05)], args=(time, signal, error, self.sim_time, self.sim_signal, self.redshift),method="Nelder-Mead")
+            ## modify this part if needed
+            if name == "J024613.89-004028.2":
+                result["x"][[0,1]] = np.log(np.array([1170,0.8]))
+                if model == "q011": result["x"][1] = np.log(1.14)
+            if name == "J024703.24-010032.0":
+                result["x"][[0,1]] = np.log(np.array([1780,0.9]))
+                if model == "q011": result["x"][1] = np.log(1.25)
+            if name == "J024944.66-000036.8": 
+                result["x"][[0,1]] = np.log(np.array([1150,0.48]))
+                if model == "q011": result["x"][1] = np.log(0.78)
+            if name == "J025406.26+002753.7":
+                result["x"][[0,1]] = np.log(np.array([1490,0.71]))
+                if model == "q011": result["x"][1] = np.log(1.01)
 
-        #tau_sample = random_state.normal(loc=result["x"][0], scale=1, size=nwalkers)
-        #sigma_sample   = random_state.normal(loc=result["x"][1],   scale=1, size=nwalkers)
-        #mean_sample   = random_state.normal(loc=result["x"][2], scale= 0.1, size=nwalkers)
+            print("Initial guess of (t_ratio, t_shift, s_ratio, s_shift, add_error) = (%.2f, %.2e, %.2f, %.2f, %.2f )" % tuple(np.exp(result["x"])))
+            pos = random_state.normal(loc=result["x"], scale=[0.01,0.01,0.01,0.001,0.001],size=[nwalkers,len(result["x"])])
 
-        #for i in range(nwalkers):
-        #    parameter = np.array([tau_sample[i], sigma_sample[i], mean_sample[i]])
-        #    pos.append(parameter)
-        #pool = mp.Pool(mp.cpu_count()/6)
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob_periodic, args=(time, signal, error, self.sim_time, self.sim_signal, z), a=2.0)#, pool=pool)
+
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob_periodic, args=(time, signal, error, self.sim_time, self.sim_signal, z, drw_periodic), a=2.0)#, pool=pool)
 
         # import random state 
         sampler.random_state = random_state.get_state()
@@ -340,7 +373,28 @@ class quasar_drw:
         #time = time_res_cont*(1+z)
         return time,lightcurve_DRW_obs
 
-        
+
+    def get_BPL_lc(self,tau,time,signal):
+
+        sim = pyLCSIM.Simulation()
+        sim.addModel(myFunc, [0,-2,-3,1./tau,0.1])
+        #myFunc(np.linspace(0.0001,10,10000),[0,-2,-3,0.003,0.1])
+
+        rate_src    = 20
+        rate_bkg    = 0
+        t_exp       = 25*365
+        dt          = 0.1
+        frms        = 0.01
+        nbins = t_exp/dt
+        # Run the simulation
+        sim.run(dt, nbins, rate_src, rms=frms)
+
+        t,flux =  sim.getLightCurve()
+
+        t = t+min(time)
+        flux_BPL = np.interp(time, t, flux)
+
+        return time,flux_BPL
 
     
     ### ********************************* ###
@@ -603,9 +657,13 @@ def lnprior_drw(theta, z, time):
     else:
         return -np.inf
 
-def lnprob_periodic (theta, time, signal, error, sim_time, sim_signal, z):
-    lp = lnprior_periodic(theta, z, time)
-    lk = lnlike_periodic(theta, time, signal, error, sim_time, sim_signal, z)
+def lnprob_periodic (theta, time, signal, error, sim_time, sim_signal, z, periodic_drw=False):
+    if periodic_drw:
+        lp = lnprior_periodic(theta, z, time)
+        lk = lnlike_periodic(theta, time, signal, error, sim_time, sim_signal, z)
+    else:
+        lp = lnprior_pure_periodic(theta,z ,time )
+        lk = lnlike_pure_periodic(theta, time, signal,error, sim_time,sim_signal,z)
     #lnprob_out = lp + lnlike(theta, time, signal, error, z)
 
     if ( np.isfinite(lp) and np.isfinite(lk) ):
@@ -621,19 +679,30 @@ def lnprior_periodic(theta, z, time):
         np.exp(lns_shift), np.exp(lndrw_sigma), np.exp(lndrw_tau)
 
     if drw_tau > 0.0  and 1.0 < drw_tau < (np.max(time)-np.min(time))/3. and \
-       0 < s_shift < 10**3 and 0.01 < s_ratio < 10**4 and 50000 < t_shift < 50000+5*t_ratio and\
+       0 < s_shift < 10**3 and 0.05 < s_ratio < 10**3 and 0.2 < t_shift < 2 and\
        500. < t_ratio < (np.max(time)-np.min(time))/3. : # mag
         return 0.0
     else:
         return -np.inf
-    
+
+def lnprior_pure_periodic(theta, z, time):
+    # prior is determined in the rest frame, no need to multiply (1+z)
+    lnt_ratio, lnt_shift, lns_ratio, lns_shift, lnadd_error = theta
+    t_ratio, t_shift, s_ratio, s_shift, add_error  = np.exp(lnt_ratio),\
+        np.exp(lnt_shift), np.exp(lns_ratio), np.exp(lns_shift), np.exp(lnadd_error)
+
+    if 0 < s_shift < 10**3 and 0.05 < s_ratio < 10**3 and 0.2 < t_shift < 2 and\
+       500. < t_ratio < (np.max(time)-np.min(time))/3. and 0 < add_error < 1 : # mag
+        return 0.0
+    else:
+        return -np.inf
 
 
 def lnlike_periodic(theta, fit_time, fit_signal, fit_error, sim_time, sim_signal, z):
 
     t_ratio, t_shift, s_ratio, s_shift, drw_tau, drw_sigma  = np.exp(theta)
 
-    fit = np.interp( fit_time, (sim_time*t_ratio)+t_shift, (sim_signal*s_ratio)+s_shift )
+    fit = np.interp( fit_time, (sim_time-t_shift)*t_ratio, (sim_signal*s_ratio)+s_shift )
     model = fit_signal - fit
 
     """
@@ -669,8 +738,37 @@ def lnlike_periodic(theta, fit_time, fit_signal, fit_error, sim_time, sim_signal
     return lnlikeli
 
 
+def lnlike_pure_periodic(theta, fit_time, fit_signal, fit_error, sim_time, sim_signal, z):
+
+    t_ratio, t_shift, s_ratio, s_shift, add_error  = np.exp(theta)
+
+    fit = np.interp( fit_time, (sim_time-t_shift)*t_ratio, (sim_signal*s_ratio)+s_shift )
+    model = fit_signal - fit
+
+    #error_2 = fit_error**2 + add_error**2
+    #lnlikeli =  -0.5 * np.sum(model ** 2 / error_2 + np.log(error_2))
+    #return lnlikeli
+
+
+    cov = np.zeros((len(fit_time),len(fit_time)))
+    #cov += error**2.0
+    cov[np.arange(len(fit_time)),np.arange(len(fit_time))] += fit_error**2.0 + add_error**2.0
+
+
+    #
+    cov_inverse = np.linalg.inv(cov)
+    chi_square  = np.dot( model, np.dot(cov_inverse, model) )
+
+    (sign, logdet) = np.linalg.slogdet( cov )
+
+    lnlikeli = -0.5*logdet - 0.5*chi_square
+
+
+    return lnlikeli
+
 
 def lnlike_drw(theta, fit_time, fit_signal, fit_error, z):
+
 
     tau, sigma, mean_mag = np.exp(theta)
 
@@ -715,4 +813,20 @@ def lnlike_drw(theta, fit_time, fit_signal, fit_error, z):
 ## ======== END MCMCfunction ======== ##
 ########################################
 
+def myFunc(f, p):
+
+    # p: parameters [f1,f2,slope1,slope2,slope3]
+
+    A = 1.
+    f1 = f[f<p[3]]
+    f2 = f[ (f<p[4]) & (f>p[3]) ]
+    f3 = f[f>p[4]]
+
+    P1 = A*f1**p[0]
+    P2 = P1[-1]*f2**p[1]/(f2[0]**p[1])
+    P3 = P2[-1]*f3**p[2]/(f3[0]**p[2])
+
+    P = np.concatenate([P1,P2,P3])
+
+    return P
 

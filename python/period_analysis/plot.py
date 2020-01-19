@@ -278,22 +278,26 @@ def plot_posterior(samples,likelihood,band,save_path,combine=True,model_comp=Fal
     fig.suptitle(band)
     fig.savefig(save_path)
 
-def plot_posterior_drw_periodic(samples,likelihood,band,save_path):
+def plot_posterior_drw_periodic(samples,likelihood,band,save_path,drw_periodic=False):
 
-    samples[:,5] = samples[:,5]**2
-    samples[:,4:6] = np.log10(samples[:,4:6])
-    #print list(samples[:,2])
     import corner
-    ndim = 6
+    ndim = 5
+    labels = [r"t_ratio", r"t_shift", \
+              r"s_ratio", r"s_shift", r"error"]
+    if drw_periodic:
+        samples[:,5] = samples[:,5]**2
+        samples[:,4:6] = np.log10(samples[:,4:6])
+        ndim = 6
+        labels = [r"t_ratio", r"t_shift",r"s_ratio",\
+                  r"s_shift",r"$log(\tau[days])$",\
+                  r"$log(var[mag])$"] 
     axrange = []
     sigma = np.std(samples,axis=0)
     median = np.median(samples,axis=0)
     maxlike = samples[likelihood == np.max(likelihood)][0]
 #    for i in range(ndim):
 #        axrange.append((median[i]-3*sigma[i],median[i]+3*sigma[i]))
-    fig = corner.corner(samples,labels=[r"t_ratio", r"t_shift", \
-                        r"s_ratio", r"s_shift",r"$log(\tau[days])$",\
-                        r"$log(var[mag])$"],\
+    fig = corner.corner(samples,labels=labels,
                         quantiles=[0.16, 0.5, 0.84],\
                         show_titles=True, title_kwargs={"fontsize": 12},\
                         plot_datapoints=False,levels=(1-np.exp(-0.5),))
