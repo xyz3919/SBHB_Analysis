@@ -284,6 +284,9 @@ def plot_posterior_drw_periodic(samples,likelihood,band,save_path,drw_periodic=F
     ndim = 5
     labels = [r"t_ratio", r"t_shift", \
               r"s_ratio", r"s_shift", r"error"]
+    #ndim = 4
+    #labels = [r"t_ratio", r"t_shift", \
+    #          r"s_ratio", r"s_shift"]
     if drw_periodic:
         samples[:,5] = samples[:,5]**2
         samples[:,4:6] = np.log10(samples[:,4:6])
@@ -300,7 +303,7 @@ def plot_posterior_drw_periodic(samples,likelihood,band,save_path,drw_periodic=F
     fig = corner.corner(samples,labels=labels,
                         quantiles=[0.16, 0.5, 0.84],\
                         show_titles=True, title_kwargs={"fontsize": 12},\
-                        plot_datapoints=False,levels=(1-np.exp(-0.5),))
+                        plot_datapoints=False,levels=(1-np.exp(-0.5),0.6321))
                         #range = axrange)
     axes = np.array(fig.axes).reshape((ndim, ndim))
 #    value = np.median(samples, axis=0)

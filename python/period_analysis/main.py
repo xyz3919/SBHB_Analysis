@@ -7,7 +7,7 @@ import matplotlib
 matplotlib.use('agg')
 #from javelin.zylc import get_data
 #from javelin.lcmodel import Cont_Model
-from gatspy import datasets, periodic
+#from gatspy import datasets, periodic
 #import carmcmc as cm
 from quasar_drw import quasar_drw as qso_drw
 from quasar_drw import lnlike,lnlike_drw,lnlike_periodic
@@ -551,8 +551,9 @@ class analysis:
         nwalkers, burnin, Nsteps, draw_times = 250,250,500,100
 
         #models = ["drw","sin","q011","q043"]
+        #models = ["drw","sin","q011"]
         models = ["sin","q011"]
-        combination = False
+        combination = True
 
         for model in models:
 
@@ -567,6 +568,7 @@ class analysis:
                 else:
                     samples,lnprob =  lc.fit_periodic_model_mcmc(nwalkers=nwalkers, burnin=burnin,Nstep=Nsteps,model=model,name=self.name,drw_periodic=False)
                     N_par = 5
+                    #N_par = 4
 
 
             np.savez("cands/%s/%s_%s.npz" % (self.name,model, band), samples,lnprob )
@@ -580,11 +582,11 @@ class analysis:
             # plot posterior
             from plot import plot_posterior, plot_posterior_drw_periodic
             if model == "drw":
-                plot_posterior(np.exp(parameters_list_good),np.exp(lnprob_good), band,"cands/%s/post_%s_%s.png" % (self.name, model,band),model_comp=True)
+                plot_posterior(np.exp(parameters_list_good),lnprob_good, band,"cands/%s/post_%s_%s.png" % (self.name, model,band),model_comp=True)
             else:
-                plot_posterior_drw_periodic(np.exp(parameters_list_good),np.exp(lnprob_good), band,"cands/%s/post_%s_%s.png" % (self.name, model,band),drw_periodic=combination)
+                plot_posterior_drw_periodic(np.exp(parameters_list_good),lnprob_good, band,"cands/%s/post_%s_%s.png" % (self.name, model,band),drw_periodic=combination)
             useful_funcs.print_and_write("log_%s" % self.name, "best-fit parameters: %s" % str(tuple(np.exp(parameters_list_good[np.argmax(lnprob_good)]))))
-            useful_funcs.print_and_write("log_%s" % self.name,"BIC(%s,%s) : %s" % (band,model,self.calculate_BIC(np.max(np.exp(lnprob_good)),N_par,len(lc.time))))
+            useful_funcs.print_and_write("log_%s" % self.name,"BIC(%s,%s) : %s" % (band,model,self.calculate_BIC(np.max(lnprob_good),N_par,len(lc.time))))
 
         """
 
@@ -688,10 +690,8 @@ class analysis:
         """
 
 
-    def calculate_BIC(self,likelihood,k,N):
-        print(likelihood,k,N)
-        return -2*np.log(likelihood)+k*np.log(N)
-
+    def calculate_BIC(self,lnlikelihood,k,N):
+        return -2*lnlikelihood+k*np.log(N)
 
 
     def plot_periodogram_and_lightcurve(self,quasar):

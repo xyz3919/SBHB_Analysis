@@ -1,0 +1,9 @@
+astropy
+setuptools
+requests
+emcee
+future
+astroML
+astroML_addons
+pyLCSIM
+corner

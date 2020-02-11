@@ -252,6 +252,7 @@ class quasar_drw:
             ndim    = 6
         else:
             ndim    = 5
+            #ndim    = 4
 
         pos     = []
 
@@ -295,39 +296,43 @@ class quasar_drw:
             if name == "J024944.66-000036.8": result["x"] = np.log(np.array([1100,54230,0.6,np.mean(signal),np.exp(2.58),np.exp(-0.9)]))
             if name == "J025406.26+002753.7": result["x"] = np.log(np.array([1490,53130,0.65,np.mean(signal),np.exp(2.9),np.exp(-0.5)]))
             """
-            if name == "J024613.89-004028.2": result["x"] = np.log(np.array([1170,0.5,0.31,np.mean(signal),np.exp(2.55),np.exp(-1.7)]))
+            if name == "J024613.89-004028.2": 
+                result["x"] = np.log(np.array([1180,0.85,0.31,np.mean(signal),np.exp(2.55),np.exp(-1.7)]))
+                if band == "r": result["x"][2] = np.log(0.27)
+                elif band == "i": result["x"][2] = np.log(0.33)
+                elif band == "z": result["x"][2] = np.log(0.30)
             if name == "J024703.24-010032.0": 
-                result["x"] = np.log(np.array([1780,1.1,0.7,np.mean(signal),np.exp(2.5),np.exp(-0.7)]))
-                if band == "r": result["x"][[2,4,5]] = [np.log(0.75),2.85,-0.5]
-                elif band == "i": result["x"][[2,4,5]] = [np.log(0.6),3.1,-0.35]
-                elif band == "z": result["x"][[2,4,5]] = [np.log(0.58),3.3,-0.3]
-                if model == "q011": result["x"][[1,2]] = [np.log(1.42),np.log(0.8)]
-
+                result["x"] = np.log(np.array([1740,0.98,0.67,np.mean(signal),np.exp(2.5),np.exp(-0.7)]))
+                if band == "r": result["x"][[2,4,5]] = [np.log(0.81),2.85,-0.5]
+                elif band == "i": result["x"][[2,4,5]] = [np.log(0.81),3.1,-0.35]
+                elif band == "z": result["x"][[2,4,5]] = [np.log(0.79),3.3,-0.3]
             if name == "J024944.66-000036.8": 
-                result["x"] = np.log(np.array([1150,1.25,0.6,np.mean(signal),np.exp(2.4),np.exp(-1.0)]))
-                if model == "q011": result["x"][1] = np.log(0.9)
+                result["x"] = np.log(np.array([1150,0.48,0.43,np.mean(signal),np.exp(2.4),np.exp(-1.0)]))
+                if band == "r": result["x"][2] = np.log(0.47)
+                elif band == "i": result["x"][2] = np.log(0.52)
+                elif band == "z": result["x"][2] = np.log(0.70)
             if name == "J025406.26+002753.7": 
-                result["x"] = np.log(np.array([1490,0.62,0.55,np.mean(signal),np.exp(2.82),np.exp(-0.61)]))
-                if band == "r": result["x"][[2,4,5]] = [np.log(0.57),3.02,-0.45]
-                elif band == "i": result["x"][[2,4,5]] = [np.log(0.55),3.05,-0.45]
-                elif band == "z": result["x"][[2,4,5]] = [np.log(0.7),2.9,-0.65]
-    
-                if model == "q011": result["x"][1] = np.log(1.1)
+                result["x"] = np.log(np.array([1490,0.79,0.72,np.mean(signal),np.exp(2.82),np.exp(-0.61)]))
+                if band == "r": result["x"][[2,4,5]] = [np.log(0.83),3.02,-0.45]
+                elif band == "i": result["x"][[2,4,5]] = [np.log(0.82),3.05,-0.45]
+                elif band == "z": result["x"][[2,4,5]] = [np.log(0.80),2.9,-0.65]
+            if model == "q011": result["x"][1] = np.log(np.exp(result["x"][1])+0.24)
             print("Initial guess of (t_ratio, t_shift, s_ratio, s_shift, "+\
                  "tau, sigma) = ( %.2f, %.2e, %.2f, %.2f, %.2f, %.2f )" % \
                  tuple(np.exp(result["x"])))
 
        ## initiate a gaussian distribution aroun dthe mean value
         ## modify this part if needed
-            pos = random_state.normal(loc=result["x"], scale=[0.0001,0.0001,0.01,0.001,0.01,0.01],size=[nwalkers,len(result["x"])]) 
+            pos = random_state.normal(loc=result["x"], scale=[0.0001,0.0001,0.001,0.001,0.1,0.1],size=[nwalkers,len(result["x"])]) 
         else:
             result = op.minimize(nll, [np.log(1500),np.log(1.0),np.log(0.3),np.log(np.mean(signal)),np.log(0.05)], args=(time, signal, error, self.sim_time, self.sim_signal, self.redshift),method="Nelder-Mead")
+            #result = op.minimize(nll, [np.log(1500),np.log(1.0),np.log(0.3),np.log(np.mean(signal))], args=(time, signal, error, self.sim_time, self.sim_signal, self.redshift),method="Nelder-Mead")
             ## modify this part if needed
             if name == "J024613.89-004028.2":
-                result["x"][[0,1]] = np.log(np.array([1170,0.8]))
+                result["x"][[0,1]] = np.log(np.array([1180,0.85]))
                 if model == "q011": result["x"][1] = np.log(1.14)
             if name == "J024703.24-010032.0":
-                result["x"][[0,1]] = np.log(np.array([1780,0.9]))
+                result["x"][[0,1]] = np.log(np.array([1740,0.95]))
                 if model == "q011": result["x"][1] = np.log(1.25)
             if name == "J024944.66-000036.8": 
                 result["x"][[0,1]] = np.log(np.array([1150,0.48]))
@@ -339,6 +344,8 @@ class quasar_drw:
             print("Initial guess of (t_ratio, t_shift, s_ratio, s_shift, add_error) = (%.2f, %.2e, %.2f, %.2f, %.2f )" % tuple(np.exp(result["x"])))
             pos = random_state.normal(loc=result["x"], scale=[0.01,0.01,0.01,0.001,0.001],size=[nwalkers,len(result["x"])])
 
+            #print("Initial guess of (t_ratio, t_shift, s_ratio, s_shift) = (%.2f, %.2e, %.2f, %.2f )" % tuple(np.exp(result["x"])))
+            #pos = random_state.normal(loc=result["x"], scale=[0.01,0.01,0.01,0.001],size=[nwalkers,len(result["x"])])
 
         sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob_periodic, args=(time, signal, error, self.sim_time, self.sim_signal, z, drw_periodic), a=2.0)#, pool=pool)
 
@@ -691,8 +698,13 @@ def lnprior_pure_periodic(theta, z, time):
     t_ratio, t_shift, s_ratio, s_shift, add_error  = np.exp(lnt_ratio),\
         np.exp(lnt_shift), np.exp(lns_ratio), np.exp(lns_shift), np.exp(lnadd_error)
 
+    #lnt_ratio, lnt_shift, lns_ratio, lns_shift  = theta
+    #t_ratio, t_shift, s_ratio, s_shift  = np.exp(lnt_ratio),\
+    #    np.exp(lnt_shift), np.exp(lns_ratio), np.exp(lns_shift)
     if 0 < s_shift < 10**3 and 0.05 < s_ratio < 10**3 and 0.2 < t_shift < 2 and\
-       500. < t_ratio < (np.max(time)-np.min(time))/3. and 0 < add_error < 1 : # mag
+       500. < t_ratio < (np.max(time)-np.min(time))/3. and 0 < add_error < 2 : # mag
+    #if 0 < s_shift < 10**3 and 0.05 < s_ratio < 10**3 and 0.2 < t_shift < 2 and\
+    #   500. < t_ratio < (np.max(time)-np.min(time))/3. : # mag
         return 0.0
     else:
         return -np.inf
@@ -741,15 +753,18 @@ def lnlike_periodic(theta, fit_time, fit_signal, fit_error, sim_time, sim_signal
 def lnlike_pure_periodic(theta, fit_time, fit_signal, fit_error, sim_time, sim_signal, z):
 
     t_ratio, t_shift, s_ratio, s_shift, add_error  = np.exp(theta)
+    #t_ratio, t_shift, s_ratio, s_shift  = np.exp(theta)
 
     fit = np.interp( fit_time, (sim_time-t_shift)*t_ratio, (sim_signal*s_ratio)+s_shift )
     model = fit_signal - fit
 
-    #error_2 = fit_error**2 + add_error**2
-    #lnlikeli =  -0.5 * np.sum(model ** 2 / error_2 + np.log(error_2))
-    #return lnlikeli
+    #add_error = 0.
+    error_2 = fit_error**2 + add_error**2
+    lnlikeli =  -0.5 * np.sum(model ** 2 / error_2 + np.log(error_2))
+    return lnlikeli
 
-
+    """
+    add_error = 0.
     cov = np.zeros((len(fit_time),len(fit_time)))
     #cov += error**2.0
     cov[np.arange(len(fit_time)),np.arange(len(fit_time))] += fit_error**2.0 + add_error**2.0
@@ -765,7 +780,7 @@ def lnlike_pure_periodic(theta, fit_time, fit_signal, fit_error, sim_time, sim_s
 
 
     return lnlikeli
-
+    """
 
 def lnlike_drw(theta, fit_time, fit_signal, fit_error, z):
 
