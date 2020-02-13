@@ -5,6 +5,7 @@ from lightcurve import main
 from lightcurve import plot
 import useful_funcs
 from astropy.io import fits
+import pandas as pd
 
 
 if __name__ == '__main__':
@@ -24,9 +25,14 @@ if __name__ == '__main__':
         useful_funcs.download_file(url_filter_SDSS % (band),dir_filter+"SDSS_"+band+".dat")
 
     # dowload DES bandpass
+    """
     url_filter_DES ="http://www.ctio.noao.edu/noao/sites/default/files/DECam/"+\
                     "STD_BANDPASSES_DR1.dat"
     useful_funcs.download_file(url_filter_DES,dir_filter+"DES.dat")
+    """
+    url_filter_DES ="http://www.ctio.noao.edu/noao/sites/default/files/DECam/"+\
+                    "DECam_filters.xlsx"
+    useful_funcs.download_file(url_filter_DES,dir_filter+"DES.xlsx")
     
     # load SDSS bandpass info
     for band in band_list:
@@ -35,19 +41,25 @@ if __name__ == '__main__':
 
     # load DES bandpass info
     band_num = {"g":1,"r":2,"i":3,"z":4}
-    data_DES = np.genfromtxt(dir_filter+"DES.dat")
+    #data_DES = np.genfromtxt(dir_filter+"DES.dat")
+    data_DES = pd.read_excel(dir_filter+"DES.xlsx")
     for band in band_list:
-        info["DES"].update({band:data_DES[:,[0,band_num[band]]]})
+        info["DES"].update({band:data_DES[["wavelength",band]]})
 
     # plot SDSS and DES
 
-    f = plot.plot(1,1)
+    f = plot.plot(1,1,figsize=(8,5))
     for camera in ["SDSS","DES"]:
         for band in band_list:
-            x = info[camera][band][:,0]
-            y = info[camera][band][:,1]
+            if camera == 'DES':
+                x = info[camera][band]["wavelength"]*10
+                y = info[camera][band][band]
+            elif camera == 'SDSS':
+                x = info[camera][band][:,0]
+                y = info[camera][band][:,1]
             f.plot_filter(x,y,band,camera)
-    f.savefig("plot/","throughput.eps","DES vs. SDSS Throughput")
+
+    f.savefig("plot/","throughput.eps","",xlabel=r"Wavelength ($\mathrm{\AA}$)",ylabel="Truoghtput")
 
     # download the J0252 spectrum  
     

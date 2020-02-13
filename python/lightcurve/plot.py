@@ -1,3 +1,4 @@
+import math
 import matplotlib
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
@@ -38,19 +39,30 @@ class plot:
             self.axes.set_yscale("log")
         self.axes.legend()
 
-    def plot_histogram(self,number_array,band):
+    def plot_histogram(self,number_array,band,dashed=False,survey=None):
 
         ax = self.ax_list[band]
         ax.set_yscale("log",nonposy='clip')
-        ax.hist(number_array,bins=40,\
-                range=(0,np.percentile(number_array,99)*1.05),\
-                facecolor = self.color_list[band])
-        if band == "i" or  band == "z":
-            ax.set_xlabel("Number of epochs",fontsize=14)
-        if band == "g" or  band == "i":
-            ax.set_ylabel("Number of quasars",fontsize=14)
-        ax.set_xlim(0,np.percentile(number_array,99)*1.05)
-        ax.text(0.95, 0.95, band,size=18,color=self.color_list[band],\
+        if dashed:
+            kwargs = {'histtype':'step','linestyle':'dashed','color':'grey'}
+        else:
+            kwargs = {'facecolor':self.color_list[band],\
+                    'histtype':'stepfilled','linestyle':'solid'}
+
+        if survey == "DES": xbound,ybound = (0,160),(0.8,500)
+        elif survey == "SDSS": xbound,ybound = (0,160),(0.8,500)
+        else: xbound,ybound = (0,np.percentile(number_array,99)*1.05),(0.8,500)
+        ax.hist(number_array,bins=50,\
+                range=xbound,\
+                **kwargs)
+        #if band == "i" or  band == "z":
+        #    ax.set_xlabel("Number of epochs",fontsize=16)
+        #if band == "g" or  band == "i":
+        #    ax.set_ylabel("Number of quasars",fontsize=16)
+        ax.tick_params(axis='both', which='major', labelsize=12)
+        ax.set_xlim(*xbound)
+        ax.set_ylim(*ybound)
+        ax.text(0.95, 0.95, band,size=16,color=self.color_list[band],\
                 horizontalalignment='right',verticalalignment='top',\
                 transform = ax.transAxes)
 
@@ -64,9 +76,9 @@ class plot:
         elif camera == "DES": linestyle = "-" 
         self.axes.plot(x,y,label=camera+" "+band,linestyle=linestyle,\
                        c=self.color_list[band])
-        self.axes.set_xlabel("Wavelength(A)",fontsize=14)
-        self.axes.set_ylabel("Truoghtput",fontsize=14)
-        self.axes.legend(prop={'size': 12})
+        self.axes.set_ylim(0,0.6)
+        self.axes.tick_params(axis='both', which='major', labelsize=12)
+        self.axes.legend(prop={'size': 10})
 
     def plot_redshift_mag(self,redshift_raw,mag_raw):
 
@@ -98,14 +110,18 @@ class plot:
         self.axHistx.set_ylabel("N",fontsize=14)
 
 
-    def savefig(self,dir_output,name,title,tight_layout=True):
+    def savefig(self,dir_output,name,title,xlabel=None,ylabel=None,tight_layout=True):
 
         if tight_layout:
-            self.f.tight_layout(rect=[0, 0.03, 1, 0.95])
+            self.f.tight_layout(rect=[0.04, 0.04, 0.96, 0.96],pad=1.5)
         if title != "": 
-            self.f.suptitle(title,fontsize=20)
+            self.f.suptitle(title,fontsize=18)
+        if xlabel is not None:
+            self.f.text(0.5, 0.02, xlabel, ha='center',fontsize=16)
+        if ylabel is not None:
+            self.f.text(0.02, 0.5, ylabel, va='center', rotation='vertical',fontsize=16)
         print("Saving "+dir_output+name)
-        self.f.savefig(dir_output+name,dpi=150)
+        self.f.savefig(dir_output+name,dpi=200)
         plt.close()
 
     ################
