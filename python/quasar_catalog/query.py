@@ -18,9 +18,9 @@ class query:
         self.cur_oper = self.dbh_oper.cursor()
 
         self.dtype_coadd = [("ra",float),("dec",float),\
-                            ("spread_model_i",float),\
-                            ("spread_model_err_i",float),\
-                            ("mag_psf_i",float),("mag_auto_i",float)]
+                            ("spread_model_r",float),\
+                            ("spread_model_err_r",float),\
+                            ("mag_psf_r",float),("mag_auto_r",float)]
 
     def get_coadd_object_spread_model(self,ra,dec):
 
@@ -29,7 +29,7 @@ class query:
         ra_lower = (ra-2/3600./np.cos(dec_radian))
         dec_upper = dec+2/3600.
         dec_lower = dec-2/3600.
-        get_object = "select RA,DEC,SPREAD_MODEL_I,SPREADERR_MODEL_I,WAVG_MAG_PSF_I,MAG_AUTO_I from Y3A1_coadd_object_summary where RA between :ra_lower and :ra_upper and DEC between :dec_lower and :dec_upper and flags_g = 0 and flags_r = 0 and flags_i = 0 and flags_z = 0 and flags_y = 0 and imaflags_iso_g = 0 and imaflags_iso_r = 0 and imaflags_iso_i = 0 and imaflags_iso_z = 0 and imaflags_iso_y = 0"
+        get_object = "select RA,DEC,SPREAD_MODEL_R,SPREADERR_MODEL_R,WAVG_MAG_PSF_R,MAG_AUTO_R from Y3A1_coadd_object_summary where RA between :ra_lower and :ra_upper and DEC between :dec_lower and :dec_upper and flags_g = 0 and flags_r = 0 and flags_i = 0 and flags_z = 0 and flags_y = 0 and imaflags_iso_g = 0 and imaflags_iso_r = 0 and imaflags_iso_i = 0 and imaflags_iso_z = 0 and imaflags_iso_y = 0"
         #get_object = "select RA,DEC,SPREAD_MODEL_I,SPREADERR_MODEL_I,WAVG_MAG_PSF_I,MAG_AUTO_I from Y3A1_coadd_object_summary where RA between :ra_lower and :ra_upper and DEC between :dec_lower and :dec_upper"
         self.cur.execute(get_object,ra_lower=ra_lower,ra_upper=ra_upper,dec_lower=dec_lower,dec_upper=dec_upper)
 

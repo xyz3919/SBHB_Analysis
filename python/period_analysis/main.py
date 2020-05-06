@@ -21,7 +21,7 @@ class analysis:
         self.lc_dir = "lightcurves/"
         self.lc_info_file = "lc_clean.csv"
         #self.lc_info_file = "lc_remain.csv"
-        self.output_dir = "analysis/"
+        self.output_dir = "best_candidates/"
         useful_funcs.create_dir(self.output_dir)
         self.stat_dir = "statistics/"
         useful_funcs.create_dir(self.stat_dir)
@@ -126,7 +126,8 @@ class analysis:
         amp,amp_err = popt[0],perr[0]
 
         if original: xn = time
-        else: xn = np.linspace(np.min(time)-100, np.max(time)+100, 10000)
+        else: xn = np.linspace(50800,59000,10000)
+        #else: xn = np.linspace(np.min(time)-100, np.max(time)+100, 10000)
         yn = sin_func(xn, *popt)
         return amp, amp_err, xn, yn
 
@@ -698,13 +699,15 @@ class analysis:
 
         """ making the periodogram and light curve plot """
         name = quasar["name"]
+        z = quasar["z"]
         self.name = name
+        brief_name = name[:5]
         print ("-- Making periodogram plot %s -- " % name)
 
         real_dir = self.output_dir+name+"/real"
         mock_dir = self.output_dir+name+"/mock"
 
-        periodogram = plot(2,2)
+        periodogram = plot(2,2,figsize=(8,7),sharex=True,sharey=True)
         for band in self.band_list:
             if os.path.exists("%s/psd_%s.npy" % (real_dir,band)):
                 period,psd,psd_error = np.load("%s/psd_%s.npy" % \
@@ -712,16 +715,18 @@ class analysis:
                 psd_mock = np.load("%s/psds_%s.npy" % (mock_dir,band))
                 significance_level = self._calculate_confidence_level(\
                                      period,psd,psd_mock,band)
-                periodogram.plot_mock_periodogram(period, psd_mock, band)
+                #periodogram.plot_mock_periodogram(period, psd_mock, band)
                 periodogram.plot_confidence_level(period,psd_mock,band)
                 periodogram.plot_periodogram(period,psd,band)
                 periodogram.plot_boost_periodogram(period,psd,psd_error,band)
                 periodogram.plot_peak_period(period, significance_level,band)
-        periodogram.savefig(self.output_dir+name,"/periodogram.png",name)
+        periodogram.savefig(self.output_dir+name,"/periodogram.eps",brief_name,xlabel="Period (Year)",ylabel="Power",h_pad=1.5,w_pad=0.5)
 
         print ("-- Making light curve plot %s --" % name)
 
         lightcurve = plot(4,1,figsize=(8,8),sharex=True)
+        # CRTS
+
         for band in self.band_list:
             for survey in self.surveys+self.surveys_add:
                 data = self.read_lightcurve(name,survey,band)
@@ -731,7 +736,7 @@ class analysis:
                     if survey in self.surveys_add: adjust_lim = False
                     else: adjust_lim = True
                     lightcurve.plot_light_curve(time,signal,error,survey,band,\
-                                                adjust_lim=adjust_lim)
+                                                adjust_lim=adjust_lim,z=z)
 
             if os.path.exists("%s/lc_%s.npy" % (real_dir,band)):
                 time,signal,error = np.load("%s/lc_%s.npy" % \
@@ -739,7 +744,14 @@ class analysis:
                 signal_mock = np.load("%s/lcs_%s.npy" % (mock_dir,band))
                 amp, amp_err, xn, yn = self._get_fit_curve(time,signal,name,band)
                 lightcurve.plot_fit_curve(xn,yn,band)
-        lightcurve.savefig(self.output_dir+name,"/lightcurve.png",name)
+
+        # CRTS
+        data = self.read_lightcurve(name,"CRTS","V")
+        if data is not None:
+            time, signal, error = data["MJD"],data["Mag"],data["Magerr"]
+            lightcurve.plot_light_curve(time,signal,error,"CRTS","r",adjust_lim=False)
+
+        lightcurve.savefig(self.output_dir+name,"/lightcurve.eps",brief_name,xlabel="MJD",ylabel="Magnitude")
 
 
     def analyze_lightcurve(self,quasar):

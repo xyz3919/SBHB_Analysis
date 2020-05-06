@@ -1,6 +1,8 @@
 import matplotlib
 matplotlib.use('agg')
 from matplotlib import pyplot as plt
+import matplotlib.ticker as ticker
+from matplotlib.lines import Line2D
 import numpy as np
 
 class plot:
@@ -14,7 +16,7 @@ class plot:
 
     def __init__(self, cols, rows,**args):
 
-        plt.rc('font', family='serif')
+        plt.rc('font', family='serif',size= 14)
         self.f,self.axes  = plt.subplots(cols, rows,**args)
         if cols==4 and rows ==1:
             self.ax_list = {"g":self.axes[0],"r":self.axes[1],\
@@ -24,10 +26,11 @@ class plot:
                             "i":self.axes[1,0],"z":self.axes[1,1]}
         self.color_list = {"g":"g","r":"orange",\
                            "i":"brown","z":"purple","total":"black"}
-        self.fmt_list = {"DES":{"fmt":"o","markersize":5},\
-                         "SDSS_corr":{"fmt":"s","markersize":5},\
-                         "PS":{"fmt":"^","markersize":5},\
-                         "ZTF":{"fmt":"+","markersize":5}
+        self.fmt_list = {"DES":{"fmt":"o","markersize":4,"zorder":15},\
+                "SDSS_corr":{"fmt":"s","markersize":4,"mfc":"None","zorder":10},\
+                "PS":{"fmt":"*","markersize":5,"mfc":"None","mec":"grey","zorder":5},\
+                "ZTF":{"fmt":"D","markersize":4,"mfc":"None","mec":"grey","zorder":3},
+                "CRTS":{"fmt":"P","markersize":5,"mfc":"None","mec":"grey","zorder":1}
                         }
 
     def plot(self,x,y,band,log=False):
@@ -55,14 +58,14 @@ class plot:
         ax.set_xscale("log")
         ax.set_xticks([1,2,4,8,10])
         ax.set_xticklabels([1,2,4,8,10])
-        ax.fill_betweenx([0.0, 1.05], 0.8,  500./365., color='grey', alpha='0.5')
+        ax.fill_betweenx([0.0, 1.05], 0.8,  500./365., color='lightgray', alpha='0.5')
         ax.fill_betweenx([0.0, 1.05], max(_freq)/365/3,  max(_freq)/365, \
-                         color='grey', alpha='0.5')
-        if band == "i" or  band == "z":
-            ax.set_xlabel("Period(yr)")
-        if band == "g" or  band == "i":
-            ax.set_ylabel("Power")
-        ax.annotate(band, xy=(0.95, 0.90),xycoords='axes fraction',\
+                         color='lightgray', alpha='0.5')
+        #if band == "i" or  band == "z":
+        #    ax.set_xlabel("Period(yr)")
+        #if band == "g" or  band == "i":
+        #    ax.set_ylabel("Power")
+        ax.annotate(band, xy=(0.95, 0.95),xycoords='axes fraction',\
                     size=12, ha='right', va='top', color=color_list[band],
                     bbox=dict(boxstyle='round', fc='w'))
 #        ax.legend()
@@ -119,8 +122,8 @@ class plot:
 
         if len(boundaries) % 2 == 1: boundaries=np.append(boundaries,period[-1])
         for i in range(len(boundaries)/2):
-            ax.axvspan(boundaries[i*2+1]/365,boundaries[i*2]/365,color='blue',\
-                       alpha = 0.5)
+            ax.axvspan(boundaries[i*2+1]/365,boundaries[i*2]/365,color='lightsteelblue',\
+                       alpha = 0.1)
 
     def plot_confidence_level(self,_freq, psd_total,band):
         ax_list = {"g":self.axes[0,0],"r":self.axes[0,1],\
@@ -130,27 +133,53 @@ class plot:
         ax = ax_list[band]
         psd_at_each__freq = zip(*psd_total)         
         percentiles = [68.27,95.45,99.0,99.74,99.99]
-        for percentile in percentiles:
-           bounday_psd_at_each__freq = [np.percentile(psd,percentile) for psd in psd_at_each__freq]
-           ax.plot(_freq/365,bounday_psd_at_each__freq,"--",c="black",linewidth=1)
+        styles = [(0,(1,5)),(0,(1,1)),'-.','--','solid']
+        lines = []
+        for i  in range(len(percentiles)):
+           bounday_psd_at_each__freq = [np.percentile(psd,percentiles[i]) for psd in psd_at_each__freq]
+           line, = ax.plot(_freq/365,bounday_psd_at_each__freq,ls=styles[i],c="black",linewidth=1)
+           lines.append(line)
+
+        if band == "z":
+            """
+            legend_elements = [ Line2D([0], [0], marker='o', color='k', label='DES', markersize=4,ls='None'),
+                                Line2D([0], [0], marker='s', color='k', label='SDSS', mfc='None',markersize=4,ls='None'),
+                                Line2D([0], [0], marker='*', mec='grey', label='PS1', markerfacecolor='None', markersize=6,ls='None'),
+                                Line2D([0], [0], marker='D', mec='grey', label='PTF/ZTF', markerfacecolor='None', markersize=3,ls='None'),
+                                Line2D([0], [0], marker='+', mec='grey', label='CRTS', markerfacecolor='None', markersize=5,ls='None',mew=2)
+                              ]
+            ax.legend(legend_elements,['DES','SDSS','PS1','PTF/ZTF','CRTS'],ncol=5,fontsize=10,numpoints=1,loc='lower right',handletextpad=0.5,columnspacing=1,framealpha=0.5).set_zorder(100)
+            """
+            lines.reverse()
+            ax.legend(lines,['99.99%','99.74%','99.0%','95.45%','68.27%'],loc='lower right',fontsize=10)
+        
 
 
-
-    def plot_light_curve(self,time,signal,error,survey,band,adjust_lim=True,yaxis="mag"):
+    def plot_light_curve(self,time,signal,error,survey,band,adjust_lim=True,yaxis="mag",z=0):
 
         if survey in self.fmt_list.keys() : fmt = self.fmt_list[survey]
         else : fmt = {"fmt":"x","markersize":5}
         ax = self.ax_list[band]
-        ax.errorbar(time,signal,yerr=error,label=band,c=self.color_list[band],\
-                    **fmt)
+        if (survey == "DES") or (survey == "SDSS_corr"):
+            ax.errorbar(time,signal,yerr=error,label=band,c=self.color_list[band],\
+                        mec=self.color_list[band],lw=0.8,**fmt)
+        else: 
+            ax.errorbar(time,signal,yerr=error,label=band,ecolor="grey",lw=0.4,**fmt)
         #bottom,top = ax.get_ylim()
         #if bottom > np.min(signal)-0.1: bottom = np.min(signal)-0.1
         #if top < np.max(signal)+0.1: top = np.max(signal)+0.1
         #ax.set_ylim(bottom,top)
         if band == "z":
-            ax.set_xlabel("MJD")
+            legend_elements = [ Line2D([0], [0], marker='o', color='k', label='DES', markersize=4,ls='None'),
+                                Line2D([0], [0], marker='s', color='k', label='SDSS', mfc='None',markersize=4,ls='None'),
+                                Line2D([0], [0], marker='*', mec='grey', label='PS1', markerfacecolor='None', markersize=5,ls='None'),
+                                Line2D([0], [0], marker='D', mec='grey', label='PTF/ZTF', markerfacecolor='None', markersize=4,ls='None'),
+                                Line2D([0], [0], marker='P', mec='grey', label='CRTS', markerfacecolor='None', markersize=5,ls='None')
+                              ]
+            ax.legend(legend_elements,['DES','SDSS','PS1','PTF/ZTF','CRTS'],ncol=5,fontsize=10,numpoints=1,loc='lower right',handletextpad=0.1,columnspacing=0.8,framealpha=0.5).set_zorder(100)
+        else: ax.tick_params(axis = "x", which = "both", bottom = False, top = False)
         if yaxis== "mag":
-            ax.set_ylabel("Magnitude") 
+            #ax.set_ylabel("Magnitude") 
             bottom,top = ax.get_ylim()
             if top > bottom: 
                 ax.set_ylim(ax.get_ylim()[::-1])
@@ -166,16 +195,34 @@ class plot:
             if top < np.max(signal)+0.1: top = np.max(signal)+0.1
             ax.set_ylim(bottom,top)
 
+        ax.set_xlim(50800,58950)
+
+        ax.yaxis.set_major_formatter(ticker.FormatStrFormatter('%.1f'))
+        bottom,top = ax.get_ylim()
+        locator = ticker.MaxNLocator(4,steps=[1,2,3,4,5,6,7,8,9],prune='both')
+        #print(locator.tick_values(*ax.get_ylim()))
+        ticks = locator.tick_values(bottom-(bottom-top)*0.1,top+(bottom-top)*0.1)
+        #print(locator.tick_values(*ax.get_ylim()))
+        #ax.yaxis.set_major_locator(locator)
+        ax.set_yticks(ticks)
+
+
 
         ax.annotate(band, xy=(0.98, 0.9),xycoords='axes fraction',\
                     size=12, ha='right', va='top', color=self.color_list[band],\
                     bbox=dict(boxstyle='round', fc='w'))
+        if (band == 'g') & (z != 0 ):
+            ax2 = ax.twiny()
+            start,end = ax.get_xlim()
+            ax2.set_xlim(0,(end-start)/365./(1+z))
+            ax2.set_xlabel('Rest-frame Time Difference (yr)')
+            ax.tick_params(axis = "x", which = "both", bottom = False, top = False)
 
     def plot_fit_curve(self,time,signal,band):
 
         ax = self.ax_list[band]
         ax.plot(time,signal,label=band,c=self.color_list[band],linestyle="--",\
-                linewidth=1)
+                linewidth=1,zorder=6)
 
     def plot_walkers(self,samples):
 
@@ -229,12 +276,33 @@ class plot:
                     bbox=dict(boxstyle='round', fc='w'))
 
 
+    """
     def savefig(self,dir_output,name,title):
 
         self.f.tight_layout(pad=1.05,rect=[0, 0.03, 1, 0.95])
         self.f.suptitle(title)
         self.f.savefig(dir_output+name,dpi=200)
         plt.close(self.f)
+    """
+    def savefig(self,dir_output,name,title,xlabel=None,ylabel=None,tight_layout=True,pad=0.1,h_pad=0.0,w_pad=0.0):
+
+        rect = [0.00,0.00,1,1]
+        if title != "": 
+            self.f.suptitle(title,fontsize=18)
+            rect[3] = 0.93
+        if xlabel is not None:
+            self.f.text(0.5, 1E-3, xlabel, ha='center',va='bottom',fontsize=16)
+            rect[1] = 0.05
+        if ylabel is not None:
+            self.f.text(1E-3, 0.5, ylabel, va='center',ha='left', rotation='vertical',fontsize=16)
+            rect[0] = 0.04
+        if tight_layout:
+            self.f.tight_layout(rect=rect,w_pad=w_pad,h_pad=h_pad,pad=pad)
+
+        print("Saving "+dir_output+name)
+        self.f.savefig(dir_output+name,dpi=200)
+        plt.close()
+
 
 
 def plot_posterior(samples,likelihood,band,save_path,combine=True,model_comp=False):

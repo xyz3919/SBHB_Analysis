@@ -45,7 +45,7 @@ class lc:
         self.save_dir = output_dir
         useful_funcs.create_dir(self.save_dir)
 
-    def load_quasar_catalog(self,quasar_catalog="Dr14+DR7+OzDES+Milliq_S1S2.txt"):
+    def load_quasar_catalog(self,quasar_catalog="DR14+DR7+OzDES+Milliq_S1S2.txt"):
 
         # loading the quasar catalog
         # columns=[ra,dec,z,flag1,flag2,flag3,flag4,mag_psf_i,spread_model_i,
@@ -58,8 +58,8 @@ class lc:
         flag_number = num_columns-6
         dtype = [('ra', '<f8'), ('dec', '<f8'), ('z', '<f8')]+\
                 [("flag_"+str(i),"|S15") for i in range(flag_number)]+\
-                [('mag_psf_i', '<f8'), ('spread_model_i', '<f8'),\
-                 ('spread_model_err_i', '<f8')]
+                [('mag_psf_r', '<f8'), ('spread_model_r', '<f8'),\
+                 ('spread_model_err_r', '<f8')]
         quasars = np.genfromtxt(self.quasar_catalog_dir+self.quasar_catalog,\
                   delimiter=",",dtype=dtype)
         quasars.sort(order="ra")
@@ -69,7 +69,7 @@ class lc:
 
         # get median magnitude for the quasar with wierd/without coadd mag 
 
-        band = "i"
+        band = "r"
         if not ((quasar_info["mag_psf_%s" % band] > 0) & \
                 (quasar_info["mag_psf_%s" % band] < 40 )):
             mag = np.median(total_quasars[total_quasars["band"]==\
@@ -113,15 +113,13 @@ class lc:
     # DES part #
     ############
 
-    def generate_finalcut_lightcurve(self,quasar):
+    def generate_finalcut_lightcurve(self,quasar,flag=True):
 
         # obtain the information at given position of the quasar.
 
         matched_quasars = np.array([],dtype=self.query.dtype_single)
-        print("1")
         objects = self.query.get_nearby_single_epoch_objects(\
-                  quasar["ra"],quasar["dec"],10)
-        print("2")
+                  quasar["ra"],quasar["dec"],10,flag=flag)
         if objects is None: return matched_quasars
         coor_quasar = SkyCoord(ra=quasar["ra"]*u.degree,\
                                dec=quasar["dec"]*u.degree)
@@ -394,14 +392,14 @@ class lc:
         for row in quasars_info:
             N_pass = 0
             for band in self.band_list:
-                if( row["N_DES_"+band]>N_DES) and (row["N_SDSS_"+band]>N_SDSS) \
+                if( row["N_DES_"+band]>N_DES) and (row["N_SDSS_"+band]>N_SDSS)\
                     and (row["spread_model_i"] < 0.005):
                     N_pass = N_pass +1
             if N_pass > N_band-1:
                 clean_sample = np.append(clean_sample,row)
         print ("Number of Quasar with Enough epochs: "+str(len(clean_sample)))
         print ("z:"+str(np.median(clean_sample["z"])))
-        print ("mag_psf_i:"+str(np.median(clean_sample["mag_psf_i"])))
+        print ("mag_psf_r:"+str(np.median(clean_sample["mag_psf_r"])))
         print ("N_DES_i:"+str(np.median(clean_sample["N_DES_i"])))
         print ("N_SDSS_i:"+str(np.median(clean_sample["N_SDSS_i"])))
 

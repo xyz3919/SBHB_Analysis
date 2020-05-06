@@ -24,9 +24,14 @@ if __name__ == '__main__':
     # make clean sample (epoch_DES > 50, epoch_SDSS > 30, > 2 band)
     clean_sample = lc.get_clean_sample(lc_info,N_DES=50,N_SDSS=30,N_band=2)
 
+
     for band in lc.band_list:
         number_epochs_DES.plot_histogram(clean_sample["N_DES_"+band],band,survey='DES')
         number_epochs_SDSS.plot_histogram(clean_sample["N_SDSS_"+band],band,survey='SDSS')
+        N_med_DES = np.median(clean_sample["N_DES_"+band])
+        N_med_SDSS = np.median(clean_sample["N_SDSS_"+band])
+        print("Median number in %s band(DES): %i" % (band,N_med_DES))
+        print("Median number in %s band(SDSS): %i" % (band,N_med_SDSS))
 
 
     print ("Saving the DES number of epochs plot at 'plot/DES_epochs.eps'")
@@ -40,7 +45,7 @@ if __name__ == '__main__':
 
     # plot the redshift and mag distribution
     redshift_mag = plot.plot(1,1,figsize=(8,6))
-    redshift_mag.plot_redshift_mag(clean_sample["z"],clean_sample["mag_psf_i"])
+    redshift_mag.plot_redshift_mag(clean_sample["z"],clean_sample["mag_psf_r"])
     redshift_mag.savefig("plot/","redshift_mag.eps",\
                          "",tight_layout=True)
 
@@ -51,8 +56,8 @@ if __name__ == '__main__':
               dtype = [("name","|S20"),("ra",float),("dec",float),\
                        ("z",float),("flag_0","|S6"),("flag_1","|S6"),\
                        ("flag_2","|S6"),("flag_3","|S15"),\
-                       ("mag_i",float),("spread_model_i",float),\
-                       ("spread_model_err_i",float),\
+                       ("mag_r",float),("spread_model_r",float),\
+                       ("spread_model_err_r",float),\
                        ("N_DES_g",int),("N_DES_r",int),("N_DES_i",int),\
                        ("N_DES_z",int),("N_SDSS_g",int),("N_SDSS_r",int),\
                        ("N_SDSS_i",int),("N_SDSS_z",int)])
@@ -63,13 +68,13 @@ if __name__ == '__main__':
         N_pass = 0
         for band in lc.band_list:
             if( row["N_DES_"+band] > 50) and (row["N_SDSS_"+band] > 30) \
-                and (row["spread_model_i"] < 0.005):
+                and (row["spread_model_r"] < 0.005):
                 N_pass = N_pass +1
         if N_pass > 1:
             clean_sample = np.append(clean_sample,row)
     print ("Number of Quasar with Enough epochs: "+str(len(clean_sample)))
     print ("z:"+str(np.median(clean_sample["z"])))
-    print ("mag_i:"+str(np.median(clean_sample["mag_i"])))
+    print ("mag_r:"+str(np.median(clean_sample["mag_r"])))
     print ("N_DES_i:"+str(np.median(clean_sample["N_DES_i"])))
     print ("N_SDSS_i:"+str(np.median(clean_sample["N_SDSS_i"])))
 
@@ -88,7 +93,7 @@ if __name__ == '__main__':
                header=",".join(clean_sample.dtype.names),comments="")
 
     redshift_mag = plot.plot(1,1,figsize=(8,6))
-    redshift_mag.plot_redshift_mag(clean_sample["z"],clean_sample["mag_i"])
+    redshift_mag.plot_redshift_mag(clean_sample["z"],clean_sample["mag_r"])
     redshift_mag.savefig("plot/","redshift_mag.png",\
                          "",tight_layout=False)
 

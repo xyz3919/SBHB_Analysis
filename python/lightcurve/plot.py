@@ -15,7 +15,7 @@ class plot:
 
     def __init__(self, cols, rows,**args):
 
-        plt.rc('font', family='serif')
+        plt.rc('font', family='serif',size= 14)
         self.f,self.axes  = plt.subplots(cols, rows,**args)
         self.color_list = {"g":"g","r":"orange",\
                            "i":"brown","z":"purple"}
@@ -25,8 +25,8 @@ class plot:
         if cols == 2 and rows == 2:
             self.ax_list = {"g":self.axes[0,0],"r":self.axes[0,1],\
                             "i":self.axes[1,0],"z":self.axes[1,1]}
-        self.fmt_list = {"DES":{"fmt":"o","markersize":5},\
-                         "SDSS_corr":{"fmt":"s","markersize":5},\
+            self.fmt_list = {"DES":{"fmt":"o","markersize":5,"alpha":0.3},\
+                    "SDSS_corr":{"fmt":"s","markersize":5,"alpha":0.3,"markerfacecolor":"None"},\
                          "PS":{"fmt":"^","markersize":5},\
                          "ZTF":{"fmt":"x","markersize":5}
                         }
@@ -44,22 +44,22 @@ class plot:
         ax = self.ax_list[band]
         ax.set_yscale("log",nonposy='clip')
         if dashed:
-            kwargs = {'histtype':'step','linestyle':'dashed','color':'grey'}
+            kwargs = {'histtype':'step','linestyle':(0, (5,1)),'color':'grey'}
         else:
             kwargs = {'facecolor':self.color_list[band],\
                     'histtype':'stepfilled','linestyle':'solid'}
 
-        if survey == "DES": xbound,ybound = (0,160),(0.8,500)
-        elif survey == "SDSS": xbound,ybound = (0,160),(0.8,500)
+        if survey == "DES": xbound,ybound = (0,159),(0.8,500)
+        elif survey == "SDSS": xbound,ybound = (0,159),(0.8,500)
         else: xbound,ybound = (0,np.percentile(number_array,99)*1.05),(0.8,500)
-        ax.hist(number_array,bins=50,\
+        ax.hist(number_array,bins=40,\
                 range=xbound,\
                 **kwargs)
         #if band == "i" or  band == "z":
         #    ax.set_xlabel("Number of epochs",fontsize=16)
         #if band == "g" or  band == "i":
         #    ax.set_ylabel("Number of quasars",fontsize=16)
-        ax.tick_params(axis='both', which='major', labelsize=12)
+        ax.tick_params(axis='both', which='major')
         ax.set_xlim(*xbound)
         ax.set_ylim(*ybound)
         ax.text(0.95, 0.95, band,size=16,color=self.color_list[band],\
@@ -76,20 +76,40 @@ class plot:
         elif camera == "DES": linestyle = "-" 
         self.axes.plot(x,y,label=camera+" "+band,linestyle=linestyle,\
                        c=self.color_list[band])
-        self.axes.set_ylim(0,0.6)
-        self.axes.tick_params(axis='both', which='major', labelsize=12)
-        self.axes.legend(prop={'size': 10})
+        self.axes.set_ylim(0,0.65)
+        self.axes.tick_params(axis='both', which='major')
+        self.axes.legend(prop={'size': 13},loc=2,ncol=2,columnspacing=1.2,handletextpad=0.5,labelspacing=0.5)
+        self.axes.set_xlim(3300,10800)
 
     def plot_redshift_mag(self,redshift_raw,mag_raw):
 
         from mpl_toolkits.axes_grid1 import make_axes_locatable
         import matplotlib.ticker as plticker
+
         mag = mag_raw[((mag_raw < 50) & (mag_raw > -50))]
         redshift = redshift_raw[((mag_raw < 50) & (mag_raw > -50))]
 
         self.axes.scatter(redshift, mag,c="black",s=6)
-        self.axes.set_xlabel("Redshift",fontsize=14)
-        self.axes.set_ylabel("i Band Magnitude",fontsize=14)
+
+        # plot periodic candidates
+        """
+        redshift_cand = [1.736,2.525,1.295,1.765]
+        mag_cand = [22.58,20.28,20.99,20.69]
+        self.axes.scatter(redshift_cand,mag_cand, marker="o", c="red",s=80,label='Candidates')
+        redshift_J0252 = 1.53
+        mag_J0252 = 20.6
+        self.axes.scatter(redshift_J0252,mag_J0252, marker="*", c="red", s=240, label='Liao et al.' )
+        """
+        self.axes.scatter(1.52,20.6, marker="o", c=u'#1F77B4',edgecolors='face', s=120, label="J0252")
+        self.axes.scatter(1.736,22.58, marker="s", c=u'#FF7F0E',edgecolors='face', s=100, label="J0246")
+        self.axes.scatter(2.525,20.28, marker="D", c=u'#2CA02C',edgecolors='face', s=90, label="J0247")
+        self.axes.scatter(1.295,20.99, marker="p", c=u'#D62728',edgecolors='face', s=150, label="J0249")
+        self.axes.scatter(1.765,20.69, marker="*", c=u'#9467BD', edgecolors='face',s=240, label="J0254")
+
+
+
+        self.axes.set_xlabel("Redshift",fontsize=16)
+        self.axes.set_ylabel("r-band Magnitude",fontsize=16)
         divider = make_axes_locatable(self.axes)
         self.axHistx = divider.append_axes("top", 1.4, pad=0.1, \
                        sharex=self.axes)
@@ -106,20 +126,31 @@ class plot:
         loc = plticker.MaxNLocator(nbins=4,prune='lower')
         self.axHisty.xaxis.set_major_locator(loc)
         self.axHistx.yaxis.set_major_locator(loc)
-        self.axHisty.set_xlabel("N",fontsize=14)
-        self.axHistx.set_ylabel("N",fontsize=14)
+        self.axHisty.set_xlabel("N",fontsize=16)
+        self.axHistx.set_ylabel("N",fontsize=16)
+
+        leg = self.axes.legend(scatterpoints = 1,handletextpad=0.2, fontsize=14)
+
+        for handle, text in zip(leg.legendHandles, leg.get_texts()):
+             text.set_color(handle.get_facecolor()[0])
 
 
-    def savefig(self,dir_output,name,title,xlabel=None,ylabel=None,tight_layout=True):
 
-        if tight_layout:
-            self.f.tight_layout(rect=[0.04, 0.04, 0.96, 0.96],pad=1.5)
+    def savefig(self,dir_output,name,title,xlabel=None,ylabel=None,tight_layout=True,pad=0.1,w_pad=0.0,h_pad=0.0):
+
+        rect = [0.00,0.00,1,1]
         if title != "": 
             self.f.suptitle(title,fontsize=18)
+            rect[3] = 0.93
         if xlabel is not None:
-            self.f.text(0.5, 0.02, xlabel, ha='center',fontsize=16)
+            self.f.text(0.5, 1E-3, xlabel, ha='center', va="bottom",fontsize=16)
+            rect[1] = 0.05
         if ylabel is not None:
-            self.f.text(0.02, 0.5, ylabel, va='center', rotation='vertical',fontsize=16)
+            self.f.text(1E-3, 0.5, ylabel, va='center', ha="left", rotation='vertical',fontsize=16)
+            rect[0] = 0.04
+        if tight_layout:
+            self.f.tight_layout(rect=rect,w_pad=w_pad,h_pad=h_pad,pad=pad)
+
         print("Saving "+dir_output+name)
         self.f.savefig(dir_output+name,dpi=200)
         plt.close()
@@ -134,7 +165,7 @@ class plot:
         else : fmt = {"fmt":"x","markersize":5}
         ax = self.ax_list[band]
         ax.errorbar(time,signal,yerr=error,label=band,c=self.color_list[band],\
-                    **fmt)
+                    mec=self.color_list[band],**fmt)
         bottom,top = ax.get_ylim()
         #if bottom > np.min(signal)-0.1: bottom = np.min(signal)-0.1
         #if top < np.max(signal)+0.1: top = np.max(signal)+0.1

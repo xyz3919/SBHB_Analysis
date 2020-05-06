@@ -63,11 +63,11 @@ if __name__ == '__main__':
         DES_coadd_object = q.get_coadd_object_spread_model(row['ra'],\
                            row['dec'])
         if DES_coadd_object is not None:
-            new_row = np.array([tuple(row)+(DES_coadd_object["mag_psf_i"],\
-                      DES_coadd_object["spread_model_i"],\
-                      DES_coadd_object["spread_model_err_i"])],\
-                      dtype=combined.dtype.descr+[("mag_psf_i",float),\
-                      ("spread_model_i",float),("spread_model_err_i",float)])
+            new_row = np.array([tuple(row)+(DES_coadd_object["mag_psf_r"],\
+                      DES_coadd_object["spread_model_r"],\
+                      DES_coadd_object["spread_model_err_r"])],\
+                      dtype=combined.dtype.descr+[("mag_psf_r",float),\
+                      ("spread_model_r",float),("spread_model_err_r",float)])
             if N == 1: combined_in_DES = new_row
             else:
                 combined_in_DES = np.concatenate((combined_in_DES,\
@@ -94,9 +94,9 @@ if __name__ == '__main__':
     f1 = plot.plot()
     f1.plot_ra_dec(quasars_S1S2["ra"],quasars_S1S2["dec"],\
                      "spec_S1S2")
-    f1.plot_spread_model_vs_err(quasars_S1S2["spread_model_i"],\
-                                quasars_S1S2["spread_model_err_i"],\
-                                "i","spec_S1S2")
+    f1.plot_spread_model_vs_err(quasars_S1S2["spread_model_r"],\
+                                quasars_S1S2["spread_model_err_r"],\
+                                "r","spec_S1S2")
 
 
     stop = timeit.default_timer()

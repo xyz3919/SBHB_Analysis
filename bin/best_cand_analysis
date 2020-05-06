@@ -15,8 +15,17 @@ if __name__ == '__main__':
 
     #analysis.show_best_candidate("J024613.89-004028.2")
     #analysis.show_best_candidate("J024703.24-010032.0")
-    analysis.show_best_candidate("J024944.66-000036.8")
-    analysis.show_best_candidate("J025406.26+002753.7")
+    #analysis.show_best_candidate("J024944.66-000036.8")
+    #analysis.show_best_candidate("J025406.26+002753.7")
+
+    # plot light curves and periodigram
+    quasars = analysis.read_quasar_catalog()
+    names = ["J024613.89-004028.2","J024703.24-010032.0","J024944.66-000036.8","J025406.26+002753.7"]
+    for name in names:
+        print(name)
+        quasar = quasars[quasars["name"] == name]
+        analysis.plot_periodogram_and_lightcurve(quasar[0])
+
 
     stop = timeit.default_timer()
     print("Execution Time:"+str((stop-start)/60.)+" mins")
