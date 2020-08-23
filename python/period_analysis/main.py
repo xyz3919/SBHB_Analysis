@@ -142,9 +142,9 @@ class analysis:
 
     def _fitting_exp_cos(self, time, signal):
 
-        p0 = [3 , 1 ]
-        popt, pcov = curve_fit(self._exp_cos,time,signal, p0=p0)#, \
-                               #bounds=(0,[20,20]),maxfev=5000)
+        p0 = [3 , 20]
+        popt, pcov = curve_fit(self._exp_cos,time,signal, p0=p0, \
+                               bounds=([0.5,2],[7,20]),maxfev=50000)
         # calculate goodness of fit
         residuals = signal- self._exp_cos(time, *popt)
         ss_res = np.sum(residuals**2)
@@ -1122,6 +1122,7 @@ class analysis:
                 popt,perr,xn,yn,r_squared = self._fitting_exp_cos(time,power)
                 lnL =  self._lnlike(popt,time,power,(yerr_u+yerr_l/2.))
                 print popt
+                print("Period: %f +- %f days" % (popt[0]*365,perr[0]*365))
                 print -2*lnL+len(popt)*np.log(len(power))
 
                 ACF.plot_ACF(time,xerr_l,xerr_u,power,yerr_l,yerr_u,\
