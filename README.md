@@ -1,5 +1,9 @@
 # Project - Supermassive Black Hole Binary Finder
 
+## Introduction
+
+The goal of this code is to search for the peioridc quasar candidates using the light curves from Dark Energy Survey (DES), Sloan Digital Sky Survey (SDSS), and other archival imaging surveys. 
+
 ## Before running any analysis
 
 ### setup PATH and PYTHONPATH
