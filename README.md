@@ -2,14 +2,17 @@
 
 ## Introduction
 
-The goal of this code is to search for the peioridc quasar candidates using the light curves from Dark Energy Survey (DES), Sloan Digital Sky Survey (SDSS), and other archival imaging surveys. 
+The goal of this code is to search for peioridc quasar candidates using light curves from Dark Energy Survey (DES), Sloan Digital Sky Survey (SDSS), and other archival imaging surveys. 
+
+The regions of interest are DES Supernova(SN) fields S1 and S2. We will complie the light curves for quasars in DES-SN S1 and S2 and then search for possible periodic signals.
 
 ## Before running any analysis
 
 ### setup PATH and PYTHONPATH
 
-Need to run them first everytime, when you want to run the script in a new terminal. 
-If you don't want to setup the path evrytime. You can replace the `pwd` with absolute path and put those two lines into your ~/.bashrc.
+Need to run them first every time, if you want to run the script in a new terminal. 
+If you don't want to set the path every time, you can replace the `pwd` with the absolute path and put the two lines into your bash file (e.g., ~/.bashrc.)
+
 ```
 export PATH=$PATH:`pwd`/bin
 export PYTHONPATH=$PYTHONPATH:`pwd`/python
@@ -17,7 +20,7 @@ export PYTHONPATH=$PYTHONPATH:`pwd`/python
 
 ### Install eups 
 
-In order to connect to DES database, we need to install eups([manual link](https://opensource.ncsa.illinois.edu/confluence/display/DESDM/EUPS+User%27s+Guide)), which is a DESDM's new package management system.
+In order to connect to DES (proprietary data) database, we need to install eups([manual link](https://opensource.ncsa.illinois.edu/confluence/display/DESDM/EUPS+User%27s+Guide)), which is a DESDM's package management system.
 You might need a password for svn.
 ```
 install_eups.sh
@@ -59,13 +62,13 @@ Once we have the quasar catalog, we then need to make the optical light curves f
 ```
 generate_lightcurves
 ```
-This program will query DES and SDSS strip 82 database and download the single-epoch information. 
+This command will query DES and SDSS strip 82 database and download the single-epoch information. 
 We also correct the magnitude difference due to different telescope systems.(tiny but important, SDSS-> DES).
 
 ```
 lightcurve_stat
 ```
-This program will tell us how many quasar has enough imaging epochs and some of thier properties like magnitude and number of epochs.
+This command will tell us how many quasar has enough imaging epochs and some of thier properties like magnitude and number of epochs.
 It will also generate the file "lightcurves/lc_clean.csv", which will be used as final quasar catalog for the light curve analysis.
 
 ## Analyzing the light curves
