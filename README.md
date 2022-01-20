@@ -8,7 +8,7 @@ The regions of interest are DES Supernova(SN) fields S1 and S2. We will complie 
 
 ## Before running any analysis
 
-### setup PATH and PYTHONPATH
+### set PATH and PYTHONPATH
 
 Need to run them first every time, if you want to run the script in a new terminal. 
 If you don't want to set the path every time, you can replace `pwd` with the absolute path and put the two lines into your bash file (e.g., ~/.bashrc.)
